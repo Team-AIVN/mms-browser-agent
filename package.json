@@ -10,11 +10,16 @@
     "serve": "webpack serve"
   },
   "devDependencies": {
+    "@types/bootstrap": "^5.2.6",
     "@types/uuid": "^9.0.2",
+    "autoprefixer": "^10.4.14",
     "css-loader": "^6.8.1",
     "html-webpack-plugin": "^5.5.3",
+    "postcss-loader": "^7.3.3",
     "prettier": "^3.0.1",
     "protobufjs-cli": "^1.1.1",
+    "sass": "^1.64.2",
+    "sass-loader": "^13.3.2",
     "style-loader": "^3.3.3",
     "ts-loader": "^9.4.4",
     "typescript": "^5.1.6",
@@ -24,6 +29,8 @@
     "workbox-webpack-plugin": "^7.0.0"
   },
   "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "bootstrap": "^5.3.1",
     "long": "^5.2.3",
     "protobufjs": "^7.2.4",
     "uuid": "^9.0.0"
