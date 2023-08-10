@@ -6,17 +6,20 @@
 </head>
 <body>
 <h1>MMS Browser Agent</h1>
-<h2 id="mrnH2"></h2>
+<h3 id="mrnH3"></h3>
 <div class="container">
     <div class="row">
         <div class="col">
             <label for="msgArea" class="form-label">Write Message Here</label>
             <textarea class="form-control" id="msgArea" cols="50" rows="10"></textarea>
-            <button class="btn btn-primary">Send</button>
+            <label for="receiver" class="form-label">Receiver of Message</label>
+            <input type="text" class="form-control" id="receiver">
+            <button class="btn btn-primary" id="sendBtn">Send</button>
         </div>
         <div class="col">
             <label for="incomingArea" class="form-label">Incoming Messages</label>
             <textarea class="form-control" id="incomingArea" cols="50" rows="10" disabled></textarea>
+            <button class="btn btn-primary" id="receiveBtn">Receive Messages</button>
         </div>
     </div>
 </div>
