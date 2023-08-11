@@ -17,6 +17,10 @@ console.log("Hello World!");
 
 const mrn = "urn:mrn:mcp:device:idp1:org1:" + uuidv4().slice(0, 8);
 
+const connectContainer = document.getElementById("connectContainer") as HTMLDivElement;
+const urlInput = document.getElementById("edgeRouterAddr") as HTMLSelectElement;
+const connectBtn = document.getElementById("connectBtn") as HTMLButtonElement;
+
 let mmtpMsg = MmtpMessage.create({
     msgType: MsgType.PROTOCOL_MESSAGE,
     uuid: uuidv4(),
@@ -37,39 +41,53 @@ console.log(msgBlob);
 const mrnH3 = document.getElementById("mrnH3") as HTMLTextAreaElement;
 mrnH3.textContent = mrn;
 
-const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElement;
-
-let ws = new WebSocket("ws://localhost:8888");
-
-let initialized = false;
-
-ws.addEventListener("open", () => {
-    ws.send(msgBlob);
-    ws.onmessage = async (msgEvent) => {
-        console.log("Message received:", msgEvent.data);
-        let data = msgEvent.data as Blob;
-        let bytes = await data.arrayBuffer();
-        let response = MmtpMessage.decode(new Uint8Array(bytes));
-        console.log(response);
-        if (!initialized) {
-            // do something
-            initialized = true;
-        } else {
-            if (response.msgType == MsgType.RESPONSE_MESSAGE) {
-                const msgs = response.responseMessage.applicationMessages;
-                const decoder = new TextDecoder();
-                msgs.forEach(msg => {
-                    let text = decoder.decode(msg.body);
-                    incomingArea.append(`${msg.header.sender} sent: ${text}\n`);
-                })
-            }
-        }
-    };
-});
-
+const msgContainer = document.getElementById("msgContainer") as HTMLDivElement;
 const msgArea = document.getElementById("msgArea") as HTMLTextAreaElement;
 const receiverInput = document.getElementById("receiver") as HTMLInputElement;
 const sendBtn = document.getElementById("sendBtn") as HTMLButtonElement;
+const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElement;
+
+let ws: WebSocket;
+
+connectBtn.addEventListener("click", () => {
+    let wsUrl = urlInput.value;
+    if (!wsUrl) {
+        wsUrl = "ws://localhost:8888";
+    } else if (!wsUrl.startsWith("ws")) {
+        wsUrl = "ws://" + wsUrl;
+    }
+
+    ws = new WebSocket(wsUrl);
+
+    let initialized = false;
+
+    ws.addEventListener("open", () => {
+        ws.send(msgBlob);
+        ws.onmessage = async (msgEvent) => {
+            console.log("Message received:", msgEvent.data);
+            let data = msgEvent.data as Blob;
+            let bytes = await data.arrayBuffer();
+            let response = MmtpMessage.decode(new Uint8Array(bytes));
+            console.log(response);
+            if (!initialized) {
+                // do something
+                connectContainer.hidden = true;
+                msgContainer.hidden = false;
+                initialized = true;
+            } else {
+                if (response.msgType == MsgType.RESPONSE_MESSAGE) {
+                    const msgs = response.responseMessage.applicationMessages;
+                    const decoder = new TextDecoder();
+                    msgs.forEach(msg => {
+                        let text = decoder.decode(msg.body);
+                        incomingArea.append(`${msg.header.sender} sent: ${text}\n`);
+                    })
+                }
+            }
+        };
+    });
+});
+
 sendBtn.addEventListener("click", () => {
     const text = msgArea.value;
     const encoder = new TextEncoder();

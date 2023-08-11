@@ -7,7 +7,16 @@
 <body>
 <h1>MMS Browser Agent</h1>
 <h3 id="mrnH3"></h3>
-<div class="container">
+<div class="container" id="connectContainer">
+    <label for="edgeRouterAddr" class="form-label">Edge Router URL</label>
+    <select class="form-select" id="edgeRouterAddr">
+        <option value="">--Please choose an Edge Router--</option>
+        <option value="ws://localhost:8888">Edge Router 1</option>
+        <option value="ws://localhost:8889">Edge Router 2</option>
+    </select>
+    <button class="btn btn-primary" id="connectBtn">Connect</button>
+</div>
+<div class="container" id="msgContainer" hidden>
     <div class="row">
         <div class="col">
             <label for="msgArea" class="form-label">Write Message Here</label>
