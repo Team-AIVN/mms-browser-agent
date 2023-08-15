@@ -5,9 +5,11 @@ import {
     MmtpMessage,
     MsgType,
     ProtocolMessage,
-    ProtocolMessageType, Receive,
+    ProtocolMessageType,
+    Receive,
     Recipients,
-    Send
+    Send,
+    Subscribe, Unsubscribe
 } from "../mmtp";
 import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
@@ -131,4 +133,65 @@ receiveBtn.addEventListener("click", () => {
     });
     const bytes = MmtpMessage.encode(receive).finish();
     ws.send(bytes);
+});
+
+const subsList = document.getElementById("subscriptions") as HTMLUListElement;
+const possibleSubscriptions = ["Horses", "Boats", "MCP"];
+possibleSubscriptions.forEach(ps => {
+   const li = document.createElement("li");
+   li.classList.add("list-group-item");
+
+   const span = document.createElement("span");
+   span.textContent = ps;
+   span.classList.add("pe-2");
+   li.appendChild(span);
+
+   const subButton = document.createElement("button");
+   subButton.classList.add("btn", "btn-primary");
+   subButton.textContent = "Subscribe";
+   li.appendChild(subButton);
+
+   const unsubButton = document.createElement("button");
+   unsubButton.classList.add("btn", "btn-danger");
+   unsubButton.textContent = "Unsubscribe";
+   unsubButton.hidden = true;
+   li.appendChild(unsubButton);
+
+   subButton.addEventListener("click", () => {
+       const subMsg = MmtpMessage.create({
+           uuid: uuidv4(),
+           msgType: MsgType.PROTOCOL_MESSAGE,
+           protocolMessage: ProtocolMessage.create({
+               protocolMsgType: ProtocolMessageType.SUBSCRIBE_MESSAGE,
+               subscribeMessage: Subscribe.create({
+                   subject: ps
+               })
+           })
+       });
+       const subMsgBytes = MmtpMessage.encode(subMsg).finish();
+       ws.send(subMsgBytes);
+
+       subButton.hidden = true;
+       unsubButton.hidden = false;
+   });
+
+   unsubButton.addEventListener("click", () => {
+       const unsubMsg = MmtpMessage.create({
+           uuid: uuidv4(),
+           msgType: MsgType.PROTOCOL_MESSAGE,
+           protocolMessage: ProtocolMessage.create({
+               protocolMsgType: ProtocolMessageType.UNSUBSCRIBE_MESSAGE,
+               unsubscribeMessage: Unsubscribe.create({
+                   subject: ps
+               })
+           })
+       });
+       const unsubMsgBytes = MmtpMessage.encode(unsubMsg).finish();
+       ws.send(unsubMsgBytes);
+
+       unsubButton.hidden = true;
+       subButton.hidden = false;
+   });
+
+   subsList.appendChild(li);
 });
