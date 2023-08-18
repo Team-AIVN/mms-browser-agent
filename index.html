@@ -21,6 +21,15 @@
         <div class="col">
             <label for="msgArea" class="form-label">Write Message Here</label>
             <textarea class="form-control my-2" id="msgArea" cols="50" rows="10"></textarea>
+            <div>
+                <label for="msgArea" class="form-label">Select File Here</label>
+                <input type="file" id="fileInput">
+                <div class="container">
+                    <div id="file-state-loaded" class="bg-success text-white py-2 px-3 mb-3">File loaded</div>
+                    <div id="file-state-unloaded" class="bg-secondary text-white py-2 px-3">File not chosen</div>
+                </div>
+            </div>
+
             <label for="receiver" class="form-label">Receiver of Message</label>
             <select class="form-select" id="receiver">
                 <option value="">---Please choose a receiver type---</option>
@@ -35,8 +44,10 @@
         </div>
         <div class="col">
             <label for="incomingArea" class="form-label">Incoming Messages</label>
-            <textarea class="form-control" id="incomingArea" cols="50" rows="10" disabled></textarea>
-            <button class="btn btn-primary my-2" id="receiveBtn">Receive Messages</button>
+            <div class="container h-100">
+                <div class="form-control h-75" id="incomingArea" cols="50"></div>
+                <button class="btn btn-primary my-2 item" id="receiveBtn">Receive Messages</button>
+            </div>
         </div>
     </div>
     <div class="row my-2">

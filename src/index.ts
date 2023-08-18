@@ -1,7 +1,7 @@
 import {
     ApplicationMessage,
     ApplicationMessageHeader,
-    Connect,
+    Connect, IApplicationMessage,
     MmtpMessage,
     MsgType,
     ProtocolMessage,
@@ -37,6 +37,9 @@ const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
 const possibleSubscriptions = ["Horses", "Boats", "MCP"];
+
+var encodedFile: Uint8Array = undefined;
+
 possibleSubscriptions.forEach(ps => {
     const li = document.createElement("li");
     li.classList.add("list-group-item");
@@ -175,10 +178,8 @@ connectBtn.addEventListener("click", () => {
             } else {
                 if (response.msgType == MsgType.RESPONSE_MESSAGE) {
                     const msgs = response.responseMessage.applicationMessages;
-                    const decoder = new TextDecoder();
                     msgs.forEach(msg => {
-                        const text = decoder.decode(msg.body);
-                        incomingArea.append(`${msg.header.sender} sent: ${text}\n`);
+                        showReceivedMessage(msg);
                     })
                 }
             }
@@ -186,10 +187,48 @@ connectBtn.addEventListener("click", () => {
     });
 });
 
+function showReceivedMessage(msg: IApplicationMessage) {
+    const decoder = new TextDecoder();
+    const text = decoder.decode(msg.body);
+    if (text.includes("FILE")) {
+        var splited = text.split('FILE');
+
+        var filtered = splited.filter(function (el) {
+            return el != "";
+        });
+
+        const fileName = filtered[0]
+        const content = filtered[1]
+
+        incomingArea.append(`${msg.header.sender} sent: `);
+        const downloadLink = document.createElement("a");
+        downloadLink.href = "#";
+        downloadLink.textContent = fileName;
+        downloadLink.onclick = (e) => {
+
+            var hidden_a = document.createElement('a');
+            hidden_a.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+            hidden_a.setAttribute('download', fileName);
+            document.body.appendChild(hidden_a); hidden_a.click();
+
+            e.preventDefault();
+        };
+        incomingArea.append(downloadLink);
+        incomingArea.append('\n');
+    } else {
+        incomingArea.append(`${msg.header.sender} sent: ${text}\n`);
+    }
+}
+
 sendBtn.addEventListener("click", () => {
-    const text = msgArea.value;
-    const encoder = new TextEncoder();
-    const bytes = encoder.encode(text);
+    var bytes;
+    if (encodedFile) {
+        bytes = encodedFile;
+    } else {
+        const text = msgArea.value;
+        const encoder = new TextEncoder();
+        bytes = encoder.encode(text);
+    }
 
     const sendMsg = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
@@ -230,6 +269,9 @@ sendBtn.addEventListener("click", () => {
     ws.send(toBeSent);
 
     msgArea.value = "";
+    encodedFile = undefined;
+    loadedState.style.display = 'none';
+    unloadedState.style.display = 'block';
 });
 
 const receiveBtn = document.getElementById("receiveBtn") as HTMLButtonElement;
@@ -246,3 +288,42 @@ receiveBtn.addEventListener("click", () => {
     lastSentMessage = receive;
     ws.send(bytes);
 });
+
+function encodeFileName(fileName: string, data: Uint8Array): Uint8Array {
+    return new TextEncoder().encode("FILE" + fileName + "FILE" +new TextDecoder().decode(data));
+}
+
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener("change", handleFiles, false);
+function handleFiles() {
+    const fileList = this.files; /* now you can work with the file list */
+
+    const file: File = this.files[0];
+    if (file) {
+        file.arrayBuffer().then(buff => {
+            let data = new Uint8Array(buff); // x is your uInt8Array
+            const encoded = encodeFileName(file.name, data)
+            // perform all required operations with x here.
+            encodedFile = encoded;
+            this.files = undefined;
+            loadedState.style.display = 'block';
+            unloadedState.style.display = 'none';
+        });
+        console.log("call finished");
+    }
+}
+
+const loadedState = document.getElementById('file-state-loaded');
+const unloadedState = document.getElementById('file-state-unloaded');
+
+loadedState.style.display = 'none';
+unloadedState.style.display = 'block';
+
+function downloadFile(fileName: string, content: Uint8Array) {
+    const downloadLink = document.createElement("a");
+    const file = new Blob([content], { type: "text/plain" });
+
+    downloadLink.download = fileName;
+    downloadLink.href = URL.createObjectURL(file);
+    downloadLink.click();
+}
