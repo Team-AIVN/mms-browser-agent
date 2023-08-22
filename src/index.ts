@@ -1,7 +1,8 @@
 import {
     ApplicationMessage,
     ApplicationMessageHeader,
-    Connect, IApplicationMessage,
+    Connect,
+    IApplicationMessage,
     MmtpMessage,
     MsgType,
     ProtocolMessage,
@@ -9,7 +10,8 @@ import {
     Receive,
     Recipients,
     Send,
-    Subscribe, Unsubscribe
+    Subscribe,
+    Unsubscribe
 } from "../mmtp";
 import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
@@ -38,7 +40,7 @@ const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElem
 
 const possibleSubscriptions = ["Horses", "Boats", "MCP"];
 
-var encodedFile: Uint8Array = undefined;
+let encodedFile: Uint8Array;
 
 possibleSubscriptions.forEach(ps => {
     const li = document.createElement("li");
@@ -191,9 +193,9 @@ function showReceivedMessage(msg: IApplicationMessage) {
     const decoder = new TextDecoder();
     const text = decoder.decode(msg.body);
     if (text.includes("FILE")) {
-        var splited = text.split('FILE');
+        let split = text.split('FILE');
 
-        var filtered = splited.filter(function (el) {
+        let filtered = split.filter(function (el) {
             return el != "";
         });
 
@@ -206,7 +208,7 @@ function showReceivedMessage(msg: IApplicationMessage) {
         downloadLink.textContent = fileName;
         downloadLink.onclick = (e) => {
 
-            var hidden_a = document.createElement('a');
+            let hidden_a = document.createElement('a');
             hidden_a.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
             hidden_a.setAttribute('download', fileName);
             document.body.appendChild(hidden_a); hidden_a.click();
@@ -221,7 +223,7 @@ function showReceivedMessage(msg: IApplicationMessage) {
 }
 
 sendBtn.addEventListener("click", () => {
-    var bytes;
+    let bytes;
     if (encodedFile) {
         bytes = encodedFile;
     } else {
@@ -302,9 +304,8 @@ function handleFiles() {
     if (file) {
         file.arrayBuffer().then(buff => {
             let data = new Uint8Array(buff); // x is your uInt8Array
-            const encoded = encodeFileName(file.name, data)
             // perform all required operations with x here.
-            encodedFile = encoded;
+            encodedFile = encodeFileName(file.name, data);
             this.files = undefined;
             loadedState.style.display = 'block';
             unloadedState.style.display = 'none';
