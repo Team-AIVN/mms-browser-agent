@@ -130,6 +130,8 @@ let ws: WebSocket;
 let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
 
+const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the word "FILE"
+
 connectBtn.addEventListener("click", () => {
     let wsUrl = urlInput.value;
     if (!wsUrl) {
@@ -190,40 +192,56 @@ connectBtn.addEventListener("click", () => {
 });
 
 function showReceivedMessage(msg: IApplicationMessage) {
+    const payload = msg.body;
     const decoder = new TextDecoder();
-    const text = decoder.decode(msg.body);
-    if (text.includes("FILE")) {
-        let split = text.split('FILE');
+    if (arraysEqual(payload.subarray(0, 4), fileBytesArray)) {
+        for (let i = 4; i < payload.length; i++) {
+            if (arraysEqual(payload.subarray(i, i + 4), fileBytesArray)) {
+                const fileNameBytes = payload.subarray(4, i);
+                const fileName = decoder.decode(fileNameBytes);
+                const content = payload.subarray(i + 4);
 
-        let filtered = split.filter(function (el) {
-            return el != "";
-        });
+                incomingArea.append(`${msg.header.sender} sent: `);
+                const downloadLink = document.createElement("a");
+                downloadLink.href = "#";
+                downloadLink.textContent = fileName;
+                downloadLink.onclick = (e) => {
 
-        const fileName = filtered[0]
-        const content = filtered[1]
+                    let hidden_a = document.createElement('a');
+                    hidden_a.setAttribute('href', 'data:application/octet-stream;base64,' + bytesToBase64(content));
+                    hidden_a.setAttribute('download', fileName);
+                    document.body.appendChild(hidden_a); hidden_a.click();
 
-        incomingArea.append(`${msg.header.sender} sent: `);
-        const downloadLink = document.createElement("a");
-        downloadLink.href = "#";
-        downloadLink.textContent = fileName;
-        downloadLink.onclick = (e) => {
-
-            let hidden_a = document.createElement('a');
-            hidden_a.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
-            hidden_a.setAttribute('download', fileName);
-            document.body.appendChild(hidden_a); hidden_a.click();
-
-            e.preventDefault();
-        };
-        incomingArea.append(downloadLink);
-        incomingArea.append('\n');
+                    e.preventDefault();
+                };
+                incomingArea.append(downloadLink);
+                incomingArea.append('\n');
+                break;
+            }
+        }
     } else {
+        const text = decoder.decode(payload);
         incomingArea.append(`${msg.header.sender} sent: ${text}\n`);
     }
 }
 
+function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length !== b.length)
+        return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i])
+            return false;
+    }
+    return true;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+    const binString = Array.from(bytes, (x) => String.fromCodePoint(x)).join("");
+    return btoa(binString);
+}
+
 sendBtn.addEventListener("click", () => {
-    let bytes;
+    let bytes: Uint8Array;
     if (encodedFile) {
         bytes = encodedFile;
     } else {
@@ -291,8 +309,12 @@ receiveBtn.addEventListener("click", () => {
     ws.send(bytes);
 });
 
-function encodeFileName(fileName: string, data: Uint8Array): Uint8Array {
-    return new TextEncoder().encode("FILE" + fileName + "FILE" +new TextDecoder().decode(data));
+function encodeFile(fileName: string, data: Uint8Array): Uint8Array {
+    const fileNameArray= new TextEncoder().encode("FILE" + fileName + "FILE");
+    const mergedArray = new Uint8Array(fileNameArray.length + data.length);
+    mergedArray.set(fileNameArray);
+    mergedArray.set(data, fileNameArray.length);
+    return mergedArray;
 }
 
 const fileInput = document.getElementById('fileInput');
@@ -305,7 +327,7 @@ function handleFiles() {
         file.arrayBuffer().then(buff => {
             let data = new Uint8Array(buff); // x is your uInt8Array
             // perform all required operations with x here.
-            encodedFile = encodeFileName(file.name, data);
+            encodedFile = encodeFile(file.name, data);
             this.files = undefined;
             loadedState.style.display = 'block';
             unloadedState.style.display = 'none';
