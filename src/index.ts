@@ -143,24 +143,6 @@ connectBtn.addEventListener("click", () => {
     ws = new WebSocket(wsUrl);
 
     ws.addEventListener("open", () => {
-        const mmtpMsg = MmtpMessage.create({
-            msgType: MsgType.PROTOCOL_MESSAGE,
-            uuid: uuidv4(),
-            protocolMessage: ProtocolMessage.create({
-                protocolMsgType: ProtocolMessageType.CONNECT_MESSAGE,
-                connectMessage: Connect.create({
-                    ownMrn: mrn
-                })
-            })
-        });
-        if (reconnectToken) {
-            mmtpMsg.protocolMessage.connectMessage.reconnectToken = reconnectToken;
-        }
-        const msgBlob = MmtpMessage.encode(mmtpMsg).finish();
-
-        lastSentMessage = mmtpMsg;
-        ws.send(msgBlob);
-
         let initialized = false;
 
         ws.onmessage = async (msgEvent) => {
@@ -178,6 +160,22 @@ connectBtn.addEventListener("click", () => {
                 connectContainer.hidden = true;
                 msgContainer.hidden = false;
                 reconnectToken = response.responseMessage.reconnectToken;
+
+                const subMsg = MmtpMessage.create({
+                    msgType: MsgType.PROTOCOL_MESSAGE,
+                    uuid: uuidv4(),
+                    protocolMessage: ProtocolMessage.create({
+                        protocolMsgType: ProtocolMessageType.SUBSCRIBE_MESSAGE,
+                        subscribeMessage: Subscribe.create({
+                            directMessages: true
+                        })
+                    })
+                });
+                msgBlob = MmtpMessage.encode(subMsg).finish();
+
+                lastSentMessage = subMsg;
+                ws.send(msgBlob);
+
                 initialized = true;
             } else {
                 if (response.msgType == MsgType.RESPONSE_MESSAGE) {
@@ -188,6 +186,24 @@ connectBtn.addEventListener("click", () => {
                 }
             }
         };
+
+        const connectMsg = MmtpMessage.create({
+            msgType: MsgType.PROTOCOL_MESSAGE,
+            uuid: uuidv4(),
+            protocolMessage: ProtocolMessage.create({
+                protocolMsgType: ProtocolMessageType.CONNECT_MESSAGE,
+                connectMessage: Connect.create({
+                    ownMrn: mrn
+                })
+            })
+        });
+        if (reconnectToken) {
+            connectMsg.protocolMessage.connectMessage.reconnectToken = reconnectToken;
+        }
+        let msgBlob = MmtpMessage.encode(connectMsg).finish();
+
+        lastSentMessage = connectMsg;
+        ws.send(msgBlob);
     });
 });
 
