@@ -1736,6 +1736,7 @@ export const Subscribe = $root.Subscribe = (() => {
      * @name ISubscribe
      * @interface ISubscribe
      * @property {string|null} [subject] Subscribe subject
+     * @property {boolean|null} [directMessages] Subscribe directMessages
      */
 
     /**
@@ -1755,11 +1756,33 @@ export const Subscribe = $root.Subscribe = (() => {
 
     /**
      * Subscribe subject.
-     * @member {string} subject
+     * @member {string|null|undefined} subject
      * @memberof Subscribe
      * @instance
      */
-    Subscribe.prototype.subject = "";
+    Subscribe.prototype.subject = null;
+
+    /**
+     * Subscribe directMessages.
+     * @member {boolean|null|undefined} directMessages
+     * @memberof Subscribe
+     * @instance
+     */
+    Subscribe.prototype.directMessages = null;
+
+    // OneOf field names bound to virtual getters and setters
+    let $oneOfFields;
+
+    /**
+     * Subscribe subjectOrDirectMessages.
+     * @member {"subject"|"directMessages"|undefined} subjectOrDirectMessages
+     * @memberof Subscribe
+     * @instance
+     */
+    Object.defineProperty(Subscribe.prototype, "subjectOrDirectMessages", {
+        get: $util.oneOfGetter($oneOfFields = ["subject", "directMessages"]),
+        set: $util.oneOfSetter($oneOfFields)
+    });
 
     /**
      * Creates a new Subscribe instance using the specified properties.
@@ -1787,6 +1810,8 @@ export const Subscribe = $root.Subscribe = (() => {
             writer = $Writer.create();
         if (message.subject != null && Object.hasOwnProperty.call(message, "subject"))
             writer.uint32(/* id 1, wireType 2 =*/10).string(message.subject);
+        if (message.directMessages != null && Object.hasOwnProperty.call(message, "directMessages"))
+            writer.uint32(/* id 2, wireType 0 =*/16).bool(message.directMessages);
         return writer;
     };
 
@@ -1825,6 +1850,10 @@ export const Subscribe = $root.Subscribe = (() => {
                     message.subject = reader.string();
                     break;
                 }
+            case 2: {
+                    message.directMessages = reader.bool();
+                    break;
+                }
             default:
                 reader.skipType(tag & 7);
                 break;
@@ -1860,9 +1889,19 @@ export const Subscribe = $root.Subscribe = (() => {
     Subscribe.verify = function verify(message) {
         if (typeof message !== "object" || message === null)
             return "object expected";
-        if (message.subject != null && message.hasOwnProperty("subject"))
+        let properties = {};
+        if (message.subject != null && message.hasOwnProperty("subject")) {
+            properties.subjectOrDirectMessages = 1;
             if (!$util.isString(message.subject))
                 return "subject: string expected";
+        }
+        if (message.directMessages != null && message.hasOwnProperty("directMessages")) {
+            if (properties.subjectOrDirectMessages === 1)
+                return "subjectOrDirectMessages: multiple values";
+            properties.subjectOrDirectMessages = 1;
+            if (typeof message.directMessages !== "boolean")
+                return "directMessages: boolean expected";
+        }
         return null;
     };
 
@@ -1880,6 +1919,8 @@ export const Subscribe = $root.Subscribe = (() => {
         let message = new $root.Subscribe();
         if (object.subject != null)
             message.subject = String(object.subject);
+        if (object.directMessages != null)
+            message.directMessages = Boolean(object.directMessages);
         return message;
     };
 
@@ -1896,10 +1937,16 @@ export const Subscribe = $root.Subscribe = (() => {
         if (!options)
             options = {};
         let object = {};
-        if (options.defaults)
-            object.subject = "";
-        if (message.subject != null && message.hasOwnProperty("subject"))
+        if (message.subject != null && message.hasOwnProperty("subject")) {
             object.subject = message.subject;
+            if (options.oneofs)
+                object.subjectOrDirectMessages = "subject";
+        }
+        if (message.directMessages != null && message.hasOwnProperty("directMessages")) {
+            object.directMessages = message.directMessages;
+            if (options.oneofs)
+                object.subjectOrDirectMessages = "directMessages";
+        }
         return object;
     };
 
@@ -1939,6 +1986,7 @@ export const Unsubscribe = $root.Unsubscribe = (() => {
      * @name IUnsubscribe
      * @interface IUnsubscribe
      * @property {string|null} [subject] Unsubscribe subject
+     * @property {boolean|null} [directMessages] Unsubscribe directMessages
      */
 
     /**
@@ -1958,11 +2006,33 @@ export const Unsubscribe = $root.Unsubscribe = (() => {
 
     /**
      * Unsubscribe subject.
-     * @member {string} subject
+     * @member {string|null|undefined} subject
      * @memberof Unsubscribe
      * @instance
      */
-    Unsubscribe.prototype.subject = "";
+    Unsubscribe.prototype.subject = null;
+
+    /**
+     * Unsubscribe directMessages.
+     * @member {boolean|null|undefined} directMessages
+     * @memberof Unsubscribe
+     * @instance
+     */
+    Unsubscribe.prototype.directMessages = null;
+
+    // OneOf field names bound to virtual getters and setters
+    let $oneOfFields;
+
+    /**
+     * Unsubscribe subjectOrDirectMessages.
+     * @member {"subject"|"directMessages"|undefined} subjectOrDirectMessages
+     * @memberof Unsubscribe
+     * @instance
+     */
+    Object.defineProperty(Unsubscribe.prototype, "subjectOrDirectMessages", {
+        get: $util.oneOfGetter($oneOfFields = ["subject", "directMessages"]),
+        set: $util.oneOfSetter($oneOfFields)
+    });
 
     /**
      * Creates a new Unsubscribe instance using the specified properties.
@@ -1990,6 +2060,8 @@ export const Unsubscribe = $root.Unsubscribe = (() => {
             writer = $Writer.create();
         if (message.subject != null && Object.hasOwnProperty.call(message, "subject"))
             writer.uint32(/* id 1, wireType 2 =*/10).string(message.subject);
+        if (message.directMessages != null && Object.hasOwnProperty.call(message, "directMessages"))
+            writer.uint32(/* id 2, wireType 0 =*/16).bool(message.directMessages);
         return writer;
     };
 
@@ -2028,6 +2100,10 @@ export const Unsubscribe = $root.Unsubscribe = (() => {
                     message.subject = reader.string();
                     break;
                 }
+            case 2: {
+                    message.directMessages = reader.bool();
+                    break;
+                }
             default:
                 reader.skipType(tag & 7);
                 break;
@@ -2063,9 +2139,19 @@ export const Unsubscribe = $root.Unsubscribe = (() => {
     Unsubscribe.verify = function verify(message) {
         if (typeof message !== "object" || message === null)
             return "object expected";
-        if (message.subject != null && message.hasOwnProperty("subject"))
+        let properties = {};
+        if (message.subject != null && message.hasOwnProperty("subject")) {
+            properties.subjectOrDirectMessages = 1;
             if (!$util.isString(message.subject))
                 return "subject: string expected";
+        }
+        if (message.directMessages != null && message.hasOwnProperty("directMessages")) {
+            if (properties.subjectOrDirectMessages === 1)
+                return "subjectOrDirectMessages: multiple values";
+            properties.subjectOrDirectMessages = 1;
+            if (typeof message.directMessages !== "boolean")
+                return "directMessages: boolean expected";
+        }
         return null;
     };
 
@@ -2083,6 +2169,8 @@ export const Unsubscribe = $root.Unsubscribe = (() => {
         let message = new $root.Unsubscribe();
         if (object.subject != null)
             message.subject = String(object.subject);
+        if (object.directMessages != null)
+            message.directMessages = Boolean(object.directMessages);
         return message;
     };
 
@@ -2099,10 +2187,16 @@ export const Unsubscribe = $root.Unsubscribe = (() => {
         if (!options)
             options = {};
         let object = {};
-        if (options.defaults)
-            object.subject = "";
-        if (message.subject != null && message.hasOwnProperty("subject"))
+        if (message.subject != null && message.hasOwnProperty("subject")) {
             object.subject = message.subject;
+            if (options.oneofs)
+                object.subjectOrDirectMessages = "subject";
+        }
+        if (message.directMessages != null && message.hasOwnProperty("directMessages")) {
+            object.directMessages = message.directMessages;
+            if (options.oneofs)
+                object.subjectOrDirectMessages = "directMessages";
+        }
         return object;
     };
 

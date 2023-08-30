@@ -611,6 +611,9 @@ export interface ISubscribe {
 
     /** Subscribe subject */
     subject?: (string|null);
+
+    /** Subscribe directMessages */
+    directMessages?: (boolean|null);
 }
 
 /** Represents a Subscribe. */
@@ -623,7 +626,13 @@ export class Subscribe implements ISubscribe {
     constructor(properties?: ISubscribe);
 
     /** Subscribe subject. */
-    public subject: string;
+    public subject?: (string|null);
+
+    /** Subscribe directMessages. */
+    public directMessages?: (boolean|null);
+
+    /** Subscribe subjectOrDirectMessages. */
+    public subjectOrDirectMessages?: ("subject"|"directMessages");
 
     /**
      * Creates a new Subscribe instance using the specified properties.
@@ -708,6 +717,9 @@ export interface IUnsubscribe {
 
     /** Unsubscribe subject */
     subject?: (string|null);
+
+    /** Unsubscribe directMessages */
+    directMessages?: (boolean|null);
 }
 
 /** Represents an Unsubscribe. */
@@ -720,7 +732,13 @@ export class Unsubscribe implements IUnsubscribe {
     constructor(properties?: IUnsubscribe);
 
     /** Unsubscribe subject. */
-    public subject: string;
+    public subject?: (string|null);
+
+    /** Unsubscribe directMessages. */
+    public directMessages?: (boolean|null);
+
+    /** Unsubscribe subjectOrDirectMessages. */
+    public subjectOrDirectMessages?: ("subject"|"directMessages");
 
     /**
      * Creates a new Unsubscribe instance using the specified properties.
