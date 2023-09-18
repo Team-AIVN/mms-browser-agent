@@ -38,7 +38,7 @@ const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElem
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
-const possibleSubscriptions = ["Horses", "Boats", "MCP"];
+const possibleSubscriptions = ["Horses", "Boats", "MCP", "Weather"];
 
 let encodedFile: Uint8Array;
 
