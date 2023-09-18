@@ -19,7 +19,7 @@ import "bootstrap";
 
 console.log("Hello World!");
 
-const mrn = "urn:mrn:mcp:device:idp1:org1:" + uuidv4().slice(0, 8);
+let mrn = "urn:mrn:mcp:device:idp1:org1:" + uuidv4().slice(0, 8);
 
 const connectContainer = document.getElementById("connectContainer") as HTMLDivElement;
 const urlInput = document.getElementById("edgeRouterAddr") as HTMLSelectElement;
@@ -135,11 +135,22 @@ const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the wor
 
 connectBtn.addEventListener("click", () => {
     let wsUrl = urlInput.value;
-    if (!wsUrl) {
-        wsUrl = "ws://localhost:8888";
+    if (wsUrl === "") {
+        alert("You need to choose an Edge Router to connect to!");
+        location.reload();
     } else if (!wsUrl.startsWith("ws")) {
         wsUrl = "ws://" + wsUrl;
     }
+
+    const nameInput = document.getElementById("nameField") as HTMLInputElement;
+    let name = nameInput.value;
+    if (name !== "") {
+        name = name.toLowerCase().replace(/\s+/, "-");
+        mrn = "urn:mrn:mcp:device:idp1:org1:" + name;
+        mrnH3.textContent = mrn;
+    }
+
+    mrnH3.hidden = false;
 
     ws = new WebSocket(wsUrl);
 

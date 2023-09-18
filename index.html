@@ -6,7 +6,7 @@
 </head>
 <body>
 <h1 class="ps-3">MMS Browser Agent</h1>
-<h3 class="ps-3" id="mrnH3"></h3>
+<h3 class="ps-3" id="mrnH3" hidden></h3>
 <div class="container" id="connectContainer">
     <label for="edgeRouterAddr" class="form-label">Edge Router URL</label>
     <select class="form-select" id="edgeRouterAddr">
@@ -14,6 +14,8 @@
         <option value="ws://20.196.198.157:8888">Korea Edge Router </option>
         <option value="ws://20.91.195.244:8888">EU Edge Router</option>
     </select>
+    <label for="nameField" class="form-label my-2">Write your name here</label>
+    <input type="text" class="form-control" id="nameField">
     <button class="btn btn-primary mt-2" id="connectBtn">Connect</button>
 </div>
 <div class="container" id="msgContainer" hidden>
