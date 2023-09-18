@@ -1,7 +1,7 @@
 import {
     ApplicationMessage,
     ApplicationMessageHeader,
-    Connect,
+    Connect, Disconnect,
     IApplicationMessage,
     MmtpMessage,
     MsgType,
@@ -33,6 +33,7 @@ const msgArea = document.getElementById("msgArea") as HTMLTextAreaElement;
 const receiverSelect = document.getElementById("receiver") as HTMLSelectElement;
 const receiverInput = document.getElementById("receiverMrn") as HTMLInputElement;
 const sendBtn = document.getElementById("sendBtn") as HTMLButtonElement;
+const disconnectBtn = document.getElementById("disconnectBtn") as HTMLButtonElement;
 const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElement;
 
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
@@ -176,6 +177,22 @@ connectBtn.addEventListener("click", () => {
                 lastSentMessage = subMsg;
                 ws.send(msgBlob);
 
+                disconnectBtn.addEventListener("click", () => {
+                    const disconnectMsg = MmtpMessage.create({
+                        msgType: MsgType.PROTOCOL_MESSAGE,
+                        uuid: uuidv4(),
+                        protocolMessage: ProtocolMessage.create({
+                            protocolMsgType: ProtocolMessageType.DISCONNECT_MESSAGE,
+                            disconnectMessage: Disconnect.create()
+                        })
+                    });
+
+                    msgBlob = MmtpMessage.encode(disconnectMsg).finish();
+
+                    lastSentMessage = disconnectMsg;
+                    ws.send(msgBlob);
+                });
+
                 initialized = true;
             } else {
                 if (response.msgType == MsgType.RESPONSE_MESSAGE) {
@@ -204,6 +221,13 @@ connectBtn.addEventListener("click", () => {
 
         lastSentMessage = connectMsg;
         ws.send(msgBlob);
+    });
+
+    ws.addEventListener("close", evt => {
+        if (evt.code !== 1000) {
+            alert("Connection to Edge Router closed unexpectedly: " + evt.reason);
+        }
+        location.reload();
     });
 });
 
