@@ -19,19 +19,19 @@ import "bootstrap";
 
 console.log("Hello World!");
 
-let mrn = "urn:mrn:mcp:device:idp1:org1:" + uuidv4().slice(0, 8);
+let ownMrn = "urn:mrn:mcp:device:idp1:org1:" + uuidv4().slice(0, 8);
 
 const connectContainer = document.getElementById("connectContainer") as HTMLDivElement;
 const urlInput = document.getElementById("edgeRouterAddr") as HTMLSelectElement;
 const connectBtn = document.getElementById("connectBtn") as HTMLButtonElement;
 
 const mrnH3 = document.getElementById("mrnH3") as HTMLTextAreaElement;
-mrnH3.textContent = mrn;
+mrnH3.textContent = ownMrn;
 
 const msgContainer = document.getElementById("msgContainer") as HTMLDivElement;
 const msgArea = document.getElementById("msgArea") as HTMLTextAreaElement;
 const receiverSelect = document.getElementById("receiver") as HTMLSelectElement;
-const receiverInput = document.getElementById("receiverMrn") as HTMLInputElement;
+const receiverMrnSelect = document.getElementById("receiverMrn") as HTMLSelectElement;
 const sendBtn = document.getElementById("sendBtn") as HTMLButtonElement;
 const disconnectBtn = document.getElementById("disconnectBtn") as HTMLButtonElement;
 const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElement;
@@ -42,6 +42,8 @@ const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElem
 const possibleSubscriptions = ["Horses", "Boats", "MCP", "Weather"];
 
 let encodedFile: Uint8Array;
+
+const mrnStoreUrl = "http://20.91.195.244";
 
 possibleSubscriptions.forEach(ps => {
     const li = document.createElement("li");
@@ -114,14 +116,28 @@ receiverSelect.addEventListener("change", () => {
     switch (selected) {
         case "mrn":
             subjectSelect.hidden = true;
-            receiverInput.hidden = false;
+            receiverMrnSelect.hidden = false;
+            fetch(mrnStoreUrl + "/mrns", {
+                mode: "cors",
+                method: "GET"
+            })
+                .then(resp => resp.json())
+                .then((resp: string[]) => resp.forEach(mrn => {
+                    if (mrn !== ownMrn) {
+                        const mrnOption = document.createElement("option");
+                        mrnOption.value = mrn;
+                        mrnOption.textContent = mrn;
+                        receiverMrnSelect.appendChild(mrnOption);
+                    }
+                }));
             break;
         case "subject":
-            receiverInput.hidden = true;
+            receiverMrnSelect.hidden = true;
+            receiverMrnSelect.innerHTML = "<option value=\"\">---Please select an MRN---</option>";
             subjectSelect.hidden = false;
             break;
         default:
-            receiverInput.hidden = true;
+            receiverMrnSelect.hidden = true;
             subjectSelect.hidden = true;
             break;
     }
@@ -146,8 +162,8 @@ connectBtn.addEventListener("click", () => {
     let name = nameInput.value;
     if (name !== "") {
         name = name.toLowerCase().replace(/\s+/, "-");
-        mrn = "urn:mrn:mcp:device:idp1:org1:" + name;
-        mrnH3.textContent = mrn;
+        ownMrn = "urn:mrn:mcp:device:idp1:org1:" + name;
+        mrnH3.textContent = ownMrn;
     }
 
     mrnH3.hidden = false;
@@ -204,6 +220,12 @@ connectBtn.addEventListener("click", () => {
                     ws.send(msgBlob);
                 });
 
+                await fetch(mrnStoreUrl + "/mrn", {
+                    method: "POST",
+                    body: ownMrn,
+                    mode: "cors"
+                });
+
                 initialized = true;
             } else {
                 if (response.msgType == MsgType.RESPONSE_MESSAGE) {
@@ -221,7 +243,7 @@ connectBtn.addEventListener("click", () => {
             protocolMessage: ProtocolMessage.create({
                 protocolMsgType: ProtocolMessageType.CONNECT_MESSAGE,
                 connectMessage: Connect.create({
-                    ownMrn: mrn
+                    ownMrn: ownMrn
                 })
             })
         });
@@ -257,7 +279,6 @@ function showReceivedMessage(msg: IApplicationMessage) {
                 downloadLink.href = "#";
                 downloadLink.textContent = fileName;
                 downloadLink.onclick = (e) => {
-
                     let hidden_a = document.createElement('a');
                     hidden_a.setAttribute('href', 'data:application/octet-stream;base64,' + bytesToBase64(content));
                     hidden_a.setAttribute('download', fileName);
@@ -310,7 +331,7 @@ sendBtn.addEventListener("click", () => {
                 applicationMessage: ApplicationMessage.create({
                     header: ApplicationMessageHeader.create({
                         bodySizeNumBytes: bytes.byteLength,
-                        sender: mrn
+                        sender: ownMrn
                     }),
                     body: bytes
                 })
@@ -321,7 +342,7 @@ sendBtn.addEventListener("click", () => {
     const selectedReceiverType = receiverSelect.options[receiverSelect.selectedIndex].value;
     switch (selectedReceiverType) {
         case "mrn":
-            const receiver = receiverInput.value;
+            const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
             sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
                 recipients: [receiver]
             });
