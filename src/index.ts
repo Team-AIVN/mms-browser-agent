@@ -210,6 +210,8 @@ connectBtn.addEventListener("click", () => {
                 msgBlob = MmtpMessage.encode(subMsg).finish();
 
                 lastSentMessage = subMsg;
+                initialized = true;
+
                 ws.send(msgBlob);
 
                 disconnectBtn.addEventListener("click", () => {
@@ -234,8 +236,6 @@ connectBtn.addEventListener("click", () => {
                     mode: "cors",
                     headers: {"Content-Type": "application/json"}
                 });
-
-                initialized = true;
             } else {
                 if (response.msgType == MsgType.RESPONSE_MESSAGE) {
                     const msgs = response.responseMessage.applicationMessages;
