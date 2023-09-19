@@ -1,7 +1,8 @@
 import {
     ApplicationMessage,
     ApplicationMessageHeader,
-    Connect, Disconnect,
+    Connect,
+    Disconnect,
     IApplicationMessage,
     MmtpMessage,
     MsgType,
@@ -44,6 +45,11 @@ const possibleSubscriptions = ["Horses", "Boats", "MCP", "Weather"];
 let encodedFile: Uint8Array;
 
 const mrnStoreUrl = "http://20.91.195.244";
+
+interface Agent {
+    mrn: string,
+    edgeRouter: string,
+}
 
 possibleSubscriptions.forEach(ps => {
     const li = document.createElement("li");
@@ -122,11 +128,11 @@ receiverSelect.addEventListener("change", () => {
                 method: "GET"
             })
                 .then(resp => resp.json())
-                .then((resp: string[]) => resp.forEach(mrn => {
-                    if (mrn !== ownMrn) {
+                .then((resp: Agent[]) => resp.forEach(agent => {
+                    if (agent.mrn !== ownMrn) {
                         const mrnOption = document.createElement("option");
-                        mrnOption.value = mrn;
-                        mrnOption.textContent = mrn;
+                        mrnOption.value = agent.mrn;
+                        mrnOption.textContent = agent.mrn;
                         receiverMrnSelect.appendChild(mrnOption);
                     }
                 }));
@@ -157,6 +163,8 @@ connectBtn.addEventListener("click", () => {
     } else if (!wsUrl.startsWith("ws")) {
         wsUrl = "ws://" + wsUrl;
     }
+
+    const edgeRouter = urlInput.options[urlInput.selectedIndex].textContent;
 
     const nameInput = document.getElementById("nameField") as HTMLInputElement;
     let name = nameInput.value;
@@ -222,8 +230,9 @@ connectBtn.addEventListener("click", () => {
 
                 await fetch(mrnStoreUrl + "/mrn", {
                     method: "POST",
-                    body: ownMrn,
-                    mode: "cors"
+                    body: JSON.stringify({mrn: ownMrn, edgeRouter: edgeRouter}),
+                    mode: "cors",
+                    headers: {"Content-Type": "application/json"}
                 });
 
                 initialized = true;
@@ -260,7 +269,10 @@ connectBtn.addEventListener("click", () => {
         if (evt.code !== 1000) {
             alert("Connection to Edge Router closed unexpectedly: " + evt.reason);
         }
-        location.reload();
+        fetch(mrnStoreUrl + "/mrn/" + ownMrn, {
+            method: "DELETE",
+            mode: "cors"
+        }).then(() => location.reload());
     });
 });
 
@@ -282,7 +294,8 @@ function showReceivedMessage(msg: IApplicationMessage) {
                     let hidden_a = document.createElement('a');
                     hidden_a.setAttribute('href', 'data:application/octet-stream;base64,' + bytesToBase64(content));
                     hidden_a.setAttribute('download', fileName);
-                    document.body.appendChild(hidden_a); hidden_a.click();
+                    document.body.appendChild(hidden_a);
+                    hidden_a.click();
 
                     e.preventDefault();
                 };
@@ -382,7 +395,7 @@ receiveBtn.addEventListener("click", () => {
 });
 
 function encodeFile(fileName: string, data: Uint8Array): Uint8Array {
-    const fileNameArray= new TextEncoder().encode("FILE" + fileName + "FILE");
+    const fileNameArray = new TextEncoder().encode("FILE" + fileName + "FILE");
     const mergedArray = new Uint8Array(fileNameArray.length + data.length);
     mergedArray.set(fileNameArray);
     mergedArray.set(data, fileNameArray.length);
@@ -391,6 +404,7 @@ function encodeFile(fileName: string, data: Uint8Array): Uint8Array {
 
 const fileInput = document.getElementById('fileInput');
 fileInput.addEventListener("change", handleFiles, false);
+
 function handleFiles() {
     const fileList = this.files; /* now you can work with the file list */
 
@@ -416,7 +430,7 @@ unloadedState.style.display = 'block';
 
 function downloadFile(fileName: string, content: Uint8Array) {
     const downloadLink = document.createElement("a");
-    const file = new Blob([content], { type: "text/plain" });
+    const file = new Blob([content], {type: "text/plain"});
 
     downloadLink.download = fileName;
     downloadLink.href = URL.createObjectURL(file);
