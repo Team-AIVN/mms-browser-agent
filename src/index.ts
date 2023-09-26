@@ -23,7 +23,10 @@ console.log("Hello World!");
 let ownMrn = "urn:mrn:mcp:device:idp1:org1:" + uuidv4().slice(0, 8);
 
 const connectContainer = document.getElementById("connectContainer") as HTMLDivElement;
+const receiveContainer = document.getElementById("receiveContainer") as HTMLDivElement;
 const urlInput = document.getElementById("edgeRouterAddr") as HTMLSelectElement;
+const nameInput = document.getElementById("nameField") as HTMLInputElement;
+const mrnInput = document.getElementById("mrnField") as HTMLInputElement;
 const connectBtn = document.getElementById("connectBtn") as HTMLButtonElement;
 
 const mrnH3 = document.getElementById("mrnH3") as HTMLTextAreaElement;
@@ -40,7 +43,28 @@ const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElem
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
-const possibleSubscriptions = ["Horses", "Boats", "MCP", "Weather"];
+interface Subscription {
+    value: string,
+    name: string,
+}
+
+const possibleSubscriptions: Subscription[] = [
+    {
+        value: "Urn:mrn:mcp:service:dk-dmi:weather_on_route",
+        name: "Weather on route",
+    },
+    {
+        value: "Boats",
+        name: "Boats",
+    },
+    {
+        value: "MCP",
+        name: "MCP",
+    },
+    {
+        value: "Weather",
+        name: "Weather",
+    }];
 
 let encodedFile: Uint8Array;
 
@@ -51,12 +75,45 @@ interface Agent {
     edgeRouter: string,
 }
 
+const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
+const subjectRadio = document.getElementById('subject') as HTMLInputElement;
+
+// MRN 라디오 버튼에 이벤트 리스너 추가
+mrnRadio.addEventListener('change', (event) => {
+    if (mrnRadio.checked) {
+        subjectSelect.hidden = true;
+        receiverMrnSelect.hidden = false;
+        fetch(mrnStoreUrl + "/mrns", {
+            mode: "cors",
+            method: "GET"
+        })
+            .then(resp => resp.json())
+            .then((resp: Agent[]) => resp.forEach(agent => {
+                if (agent.mrn !== ownMrn) {
+                    const mrnOption = document.createElement("option");
+                    mrnOption.value = agent.mrn;
+                    mrnOption.textContent = agent.mrn;
+                    receiverMrnSelect.appendChild(mrnOption);
+                }
+            }));
+    }
+});
+
+// Subject 라디오 버튼에 이벤트 리스너 추가
+subjectRadio.addEventListener('change', (event) => {
+    if (subjectRadio.checked) {
+        receiverMrnSelect.hidden = true;
+        receiverMrnSelect.innerHTML = "<option value=\"\">---Please select an MRN---</option>";
+        subjectSelect.hidden = false;
+    }
+});
+
 possibleSubscriptions.forEach(ps => {
     const li = document.createElement("li");
     li.classList.add("list-group-item");
 
     const span = document.createElement("span");
-    span.textContent = ps;
+    span.textContent = ps.name;
     span.classList.add("pe-2");
     li.appendChild(span);
 
@@ -78,7 +135,7 @@ possibleSubscriptions.forEach(ps => {
             protocolMessage: ProtocolMessage.create({
                 protocolMsgType: ProtocolMessageType.SUBSCRIBE_MESSAGE,
                 subscribeMessage: Subscribe.create({
-                    subject: ps
+                    subject: ps.value
                 })
             })
         });
@@ -97,7 +154,7 @@ possibleSubscriptions.forEach(ps => {
             protocolMessage: ProtocolMessage.create({
                 protocolMsgType: ProtocolMessageType.UNSUBSCRIBE_MESSAGE,
                 unsubscribeMessage: Unsubscribe.create({
-                    subject: ps
+                    subject: ps.value
                 })
             })
         });
@@ -112,42 +169,19 @@ possibleSubscriptions.forEach(ps => {
     subsList.appendChild(li);
 
     const subjectOption = document.createElement("option");
-    subjectOption.value = ps;
-    subjectOption.textContent = ps;
+    subjectOption.value = ps.value;
+    subjectOption.textContent = ps.name;
     subjectSelect.appendChild(subjectOption);
 });
 
-receiverSelect.addEventListener("change", () => {
-    const selected = receiverSelect.options[receiverSelect.selectedIndex].value;
-    switch (selected) {
-        case "mrn":
-            subjectSelect.hidden = true;
-            receiverMrnSelect.hidden = false;
-            fetch(mrnStoreUrl + "/mrns", {
-                mode: "cors",
-                method: "GET"
-            })
-                .then(resp => resp.json())
-                .then((resp: Agent[]) => resp.forEach(agent => {
-                    if (agent.mrn !== ownMrn) {
-                        const mrnOption = document.createElement("option");
-                        mrnOption.value = agent.mrn;
-                        mrnOption.textContent = agent.mrn;
-                        receiverMrnSelect.appendChild(mrnOption);
-                    }
-                }));
-            break;
-        case "subject":
-            receiverMrnSelect.hidden = true;
-            receiverMrnSelect.innerHTML = "<option value=\"\">---Please select an MRN---</option>";
-            subjectSelect.hidden = false;
-            break;
-        default:
-            receiverMrnSelect.hidden = true;
-            subjectSelect.hidden = true;
-            break;
-    }
-});
+nameInput.addEventListener("keyup", () => {
+    const nameInput = document.getElementById("nameField") as HTMLInputElement;
+    let name = nameInput.value;
+    name = name.toLowerCase().trim().replace(/\s+/g, "-");
+    ownMrn = "urn:mrn:mcp:device:idp1:org1:" + name;
+    mrnInput.value = ownMrn;
+})
+
 
 let ws: WebSocket;
 let reconnectToken: string;
@@ -169,7 +203,7 @@ connectBtn.addEventListener("click", () => {
     const nameInput = document.getElementById("nameField") as HTMLInputElement;
     let name = nameInput.value;
     if (name !== "") {
-        name = name.toLowerCase().trim().replace(/\s+/, "-");
+        name = name.toLowerCase().trim().replace(/\s+/g, "-");
         ownMrn = "urn:mrn:mcp:device:idp1:org1:" + name;
         mrnH3.textContent = ownMrn;
     }
@@ -236,6 +270,9 @@ connectBtn.addEventListener("click", () => {
                     mode: "cors",
                     headers: {"Content-Type": "application/json"}
                 });
+
+                disconnectBtn.hidden = false;
+                receiveContainer.hidden = false;
             } else {
                 if (response.msgType == MsgType.RESPONSE_MESSAGE) {
                     const msgs = response.responseMessage.applicationMessages;
@@ -300,13 +337,14 @@ function showReceivedMessage(msg: IApplicationMessage) {
                     e.preventDefault();
                 };
                 incomingArea.append(downloadLink);
-                incomingArea.append('\n');
+                incomingArea!.appendChild(document.createElement('br'));
                 break;
             }
         }
     } else {
         const text = decoder.decode(payload);
-        incomingArea.append(`${msg.header.sender} sent: ${text}\n`);
+        incomingArea.append(`${msg.header.sender} sent: ${text}`);
+        incomingArea!.appendChild(document.createElement('br'));
     }
 }
 
@@ -326,6 +364,10 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 sendBtn.addEventListener("click", () => {
+    if (!mrnRadio.checked && !subjectRadio.checked) {
+        alert("you need to choose message type!");
+    }
+
     let bytes: Uint8Array;
     if (encodedFile) {
         bytes = encodedFile;
@@ -352,21 +394,14 @@ sendBtn.addEventListener("click", () => {
         })
     });
 
-    const selectedReceiverType = receiverSelect.options[receiverSelect.selectedIndex].value;
-    switch (selectedReceiverType) {
-        case "mrn":
-            const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
-            sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
-                recipients: [receiver]
-            });
-            break;
-        case "subject":
-            const subject = subjectSelect.options[subjectSelect.selectedIndex].value;
-            sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subject;
-            break;
-        default:
-            alert("You must select a receiver type before sending");
-            return;
+    if (mrnRadio.checked) {
+        const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
+        sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
+            recipients: [receiver]
+        });
+    } else if (subjectRadio.checked) {
+        const subject = subjectSelect.options[subjectSelect.selectedIndex].value;
+        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subject;
     }
 
     const toBeSent = MmtpMessage.encode(sendMsg).finish();

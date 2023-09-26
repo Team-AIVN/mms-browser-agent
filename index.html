@@ -2,63 +2,111 @@
 <html>
 <head>
     <meta charset="utf-8"/>
-    <title>Webpack App</title>
+    <title>MCP MMS Browser Agent</title>
 </head>
 <body>
-<h1 class="ps-3">MMS Browser Agent</h1>
-<h3 class="ps-3" id="mrnH3" hidden></h3>
-<div class="container" id="connectContainer">
-    <label for="edgeRouterAddr" class="form-label">Edge Router URL</label>
-    <select class="form-select" id="edgeRouterAddr">
-        <option value="">--Please choose an Edge Router--</option>
-        <option value="ws://20.196.198.157:8888">Korea Edge Router </option>
-        <option value="ws://20.91.195.244:8888">EU Edge Router</option>
-    </select>
-    <label for="nameField" class="form-label my-2">Write your name here</label>
-    <input type="text" class="form-control" id="nameField">
-    <button class="btn btn-primary mt-2" id="connectBtn">Connect</button>
-</div>
-<div class="container" id="msgContainer" hidden>
+<div class="container">
     <div class="row">
-        <div class="col">
-            <label for="msgArea" class="form-label">Write Message Here</label>
-            <textarea class="form-control my-2" id="msgArea" cols="50" rows="10"></textarea>
-            <div>
-                <label for="msgArea" class="form-label">Select File Here</label>
+        <h1 class="ps-3">MMS Browser Agent</h1>
+        <hr class="hr"/>
+    </div>
+    <div class="row">
+        <div class="col-10">
+            <h3 class="ps-3" id="mrnH3" hidden></h3>
+        </div>
+        <div class="col d-flex justify-content-end">
+            <button class="btn btn-danger my-2" id="disconnectBtn" hidden>Disconnect</button>
+        </div>
+        <hr class="hr"/>
+    </div>
+    <div class="row" id="receiveContainer" hidden>
+        <h3>Received messages</h3>
+        <div class="container h-100">
+            <div class="form-control" id="incomingArea" rows="10" style="height: 200px"></div>
+            <button class="btn btn-primary my-2 item" id="receiveBtn">Receive Messages</button>
+        </div>
+        <hr class="hr"/>
+    </div>
+    <div class="row">
+        <div class="container" id="msgContainer" hidden>
+            <div class="row">
+                <h3>Send message</h3>
+            </div>
+            <div class="row">
+                <label for="receiver" class="form-label">Message type</label>
+                <div class="form-check" id="receiver">
+                    <input class="form-check-input" type="radio" id="mrn" name="receiverType" value="mrn">
+                    <label class="form-check-label" for="mrn">
+                        Direct message
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" id="subject" name="receiverType" value="subject">
+                    <label class="form-check-label" for="subject">
+                        Subject
+                    </label>
+                </div>
+                <select type="text" class="form-select" id="receiverMrn" hidden>
+                    <option value="">---Please select an MRN---</option>
+                </select>
+                <select class="form-select" id="subjectSelect" hidden>
+                    <option value="">---Please select a subject---</option>
+                </select>
+            </div>
+            <div class="row">
+                <label for="msgArea" class="form-label">Write Message Here</label>
+                <textarea class="form-control my-2" id="msgArea" cols="50" rows="2"></textarea>
+            </div>
+            <div class="row">
+                <label for="msgArea" class="form-label">Select File Here (less than 1MB)</label>
                 <input type="file" id="fileInput">
                 <div class="container">
                     <div id="file-state-loaded" class="bg-success text-white py-2 px-3 mb-3">File loaded</div>
                     <div id="file-state-unloaded" class="bg-secondary text-white py-2 px-3">File not chosen</div>
                 </div>
             </div>
-
-            <label for="receiver" class="form-label">Receiver of Message</label>
-            <select class="form-select" id="receiver">
-                <option value="">---Please choose a receiver type---</option>
-                <option value="mrn">MRN</option>
-                <option value="subject">Subject</option>
-            </select>
-            <select type="text" class="form-select" id="receiverMrn" hidden>
-                <option value="">---Please select an MRN---</option>
-            </select>
-            <select class="form-select" id="subjectSelect" hidden>
-                <option value="">---Please select a subject---</option>
-            </select>
-            <button class="btn btn-primary my-2" id="sendBtn">Send</button>
-            <button class="btn btn-danger my-2" id="disconnectBtn">Disconnect</button>
-        </div>
-        <div class="col">
-            <label for="incomingArea" class="form-label">Incoming Messages</label>
-            <div class="container h-100">
-                <div class="form-control h-75" id="incomingArea" cols="50"></div>
-                <button class="btn btn-primary my-2 item" id="receiveBtn">Receive Messages</button>
+            <div class="row">
+                <button class="btn btn-primary my-2" id="sendBtn">Send</button>
+            </div>
+            <hr class="hr"/>
+            <div class="row">
+                <div class="row my-2">
+                    <h3>Manage my subscriptions</h3>
+                    <ul class="list-group" id="subscriptions"></ul>
+                </div>
+            </div>
+            <div class="row">
             </div>
         </div>
     </div>
-    <div class="row my-2">
-        <label for="subscriptions" class="form-label">Subscriptions</label>
-        <ul class="list-group" id="subscriptions"></ul>
+
+
+</div>
+</div>
+
+
+<div class="container" id="connectContainer">
+    <div class="row">
+        <h3>Connect to MMS network</h3>
+    </div>
+    <div class="row">
+        <label for="edgeRouterAddr" class="form-label">Select MMS Edge Router</label>
+        <select class="form-select" id="edgeRouterAddr">
+            <option value="">--Please choose an Edge Router--</option>
+            <option value="ws://20.196.198.157:8888">Korea Edge Router</option>
+            <option value="ws://20.91.195.244:8888">EU Edge Router</option>
+        </select>
+    </div>
+    <div class="row">
+        <label for="nameField" class="form-label my-2">Write your name here</label>
+        <input type="text" class="form-control" id="nameField">
+        <label for="mrnField" class="form-label my-2">Your MRN will be..</label>
+        <input type="text" class="form-control" disabled id="mrnField" value="urn:mrn:mcp:device:idp1:org1:">
+    </div>
+    <div class="row">
+        <button class="btn btn-primary mt-2" id="connectBtn">Connect</button>
     </div>
 </div>
+
 </body>
 </html>
