@@ -169,7 +169,7 @@ connectBtn.addEventListener("click", () => {
     const nameInput = document.getElementById("nameField") as HTMLInputElement;
     let name = nameInput.value;
     if (name !== "") {
-        name = name.toLowerCase().replace(/\s+/, "-");
+        name = name.toLowerCase().trim().replace(/\s+/, "-");
         ownMrn = "urn:mrn:mcp:device:idp1:org1:" + name;
         mrnH3.textContent = ownMrn;
     }
