@@ -223,7 +223,7 @@ connectBtn.addEventListener("click", () => {
             console.log(response);
 
             if (response.responseMessage?.responseToUuid !== lastSentMessage.uuid) {
-                alert("The UUID of the last sent message does not match the UUID being responded to");
+                console.error("The UUID of the last sent message does not match the UUID being responded to");
             }
             if (!initialized) {
                 // do something
@@ -337,14 +337,14 @@ function showReceivedMessage(msg: IApplicationMessage) {
                     e.preventDefault();
                 };
                 incomingArea.append(downloadLink);
-                incomingArea!.appendChild(document.createElement('br'));
+                incomingArea.appendChild(document.createElement('br'));
                 break;
             }
         }
     } else {
         const text = decoder.decode(payload);
         incomingArea.append(`${msg.header.sender} sent: ${text}`);
-        incomingArea!.appendChild(document.createElement('br'));
+        incomingArea.appendChild(document.createElement('br'));
     }
 }
 
@@ -365,7 +365,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 sendBtn.addEventListener("click", () => {
     if (!mrnRadio.checked && !subjectRadio.checked) {
-        alert("you need to choose message type!");
+        alert("You need to choose message type!");
     }
 
     let bytes: Uint8Array;
@@ -400,8 +400,7 @@ sendBtn.addEventListener("click", () => {
             recipients: [receiver]
         });
     } else if (subjectRadio.checked) {
-        const subject = subjectSelect.options[subjectSelect.selectedIndex].value;
-        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subject;
+        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subjectSelect.options[subjectSelect.selectedIndex].value;
     }
 
     const toBeSent = MmtpMessage.encode(sendMsg).finish();
