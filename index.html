@@ -29,44 +29,46 @@
     </div>
     <div class="row">
         <div class="container" id="msgContainer" hidden>
-            <div class="row">
-                <h3>Send message</h3>
-            </div>
-            <div class="row">
-                <label for="receiver" class="form-label">Message type</label>
-                <div class="form-check" id="receiver">
-                    <input class="form-check-input" type="radio" id="mrn" name="receiverType" value="mrn">
-                    <label class="form-check-label" for="mrn">
-                        Direct message
-                    </label>
+            <div class="container" id="sendContainer" hidden>
+                <div class="row">
+                    <h3>Send message</h3>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" id="subject" name="receiverType" value="subject">
-                    <label class="form-check-label" for="subject">
-                        Subject
-                    </label>
+                <div class="row">
+                    <label for="receiver" class="form-label">Message type</label>
+                    <div class="form-check" id="receiver">
+                        <input class="form-check-input" type="radio" id="mrn" name="receiverType" value="mrn">
+                        <label class="form-check-label" for="mrn">
+                            Direct message
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="subject" name="receiverType" value="subject">
+                        <label class="form-check-label" for="subject">
+                            Subject
+                        </label>
+                    </div>
+                    <select type="text" class="form-select" id="receiverMrn" hidden>
+                        <option value="">---Please select an MRN---</option>
+                    </select>
+                    <select class="form-select" id="subjectSelect" hidden>
+                        <option value="">---Please select a subject---</option>
+                    </select>
                 </div>
-                <select type="text" class="form-select" id="receiverMrn" hidden>
-                    <option value="">---Please select an MRN---</option>
-                </select>
-                <select class="form-select" id="subjectSelect" hidden>
-                    <option value="">---Please select a subject---</option>
-                </select>
-            </div>
-            <div class="row">
-                <label for="msgArea" class="form-label">Write Message Here</label>
-                <textarea class="form-control my-2" id="msgArea" cols="50" rows="2"></textarea>
-            </div>
-            <div class="row">
-                <label for="msgArea" class="form-label">Select File Here (less than 1MB)</label>
-                <input type="file" id="fileInput">
-                <div class="container">
-                    <div id="file-state-loaded" class="bg-success text-white py-2 px-3 mb-3">File loaded</div>
-                    <div id="file-state-unloaded" class="bg-secondary text-white py-2 px-3">File not chosen</div>
+                <div class="row">
+                    <label for="msgArea" class="form-label">Write Message Here</label>
+                    <textarea class="form-control my-2" id="msgArea" cols="50" rows="2"></textarea>
                 </div>
-            </div>
-            <div class="row">
-                <button class="btn btn-primary my-2" id="sendBtn">Send</button>
+                <div class="row">
+                    <label for="msgArea" class="form-label">Select File Here (less than 1MB)</label>
+                    <input type="file" id="fileInput">
+                    <div class="container">
+                        <div id="file-state-loaded" class="bg-success text-white py-2 px-3 mb-3">File loaded</div>
+                        <div id="file-state-unloaded" class="bg-secondary text-white py-2 px-3">File not chosen</div>
+                    </div>
+                </div>
+                <div class="row">
+                    <button class="btn btn-primary my-2" id="sendBtn">Send</button>
+                </div>
             </div>
             <hr class="hr"/>
             <div class="row">
@@ -79,17 +81,14 @@
             </div>
         </div>
     </div>
-
-
-</div>
 </div>
 
 
 <div class="container" id="connectContainer">
-    <div class="row">
+    <div class="row my-2">
         <h3>Connect to MMS network</h3>
     </div>
-    <div class="row">
+    <div class="row my-2">
         <label for="edgeRouterAddr" class="form-label">Select MMS Edge Router</label>
         <select class="form-select" id="edgeRouterAddr">
             <option value="">--Please choose an Edge Router--</option>
@@ -97,11 +96,19 @@
             <option value="ws://20.91.195.244:8888">EU Edge Router</option>
         </select>
     </div>
-    <div class="row">
-        <label for="nameField" class="form-label my-2">Write your name here</label>
-        <input type="text" class="form-control" id="nameField">
-        <label for="mrnField" class="form-label my-2">Your MRN will be..</label>
-        <input type="text" class="form-control" disabled id="mrnField" value="urn:mrn:mcp:device:idp1:org1:">
+    <div class="row my-2">
+        <label for="connectionTypeSelect" class="form-label">Select a connection type</label>
+        <select class="form-select" id="connectionTypeSelect">
+            <option value="">--Please choose a connection type--</option>
+            <option value="authenticated">Authenticated</option>
+            <option value="unauthenticated">Unauthenticated</option>
+        </select>
+    </div>
+    <div class="row my-2" id="certInputDiv" hidden>
+        <label for="certInput" class="form-label">Load certificate file</label>
+        <input type="file" id="certInput" class="form-control" accept=".pem, .crt">
+        <label for="privateKeyInput" class="form-label my-2">Load private key file</label>
+        <input type="file" id="privateKeyInput" class="form-control" accept=".pem, .key">
     </div>
     <div class="row">
         <button class="btn btn-primary mt-2" id="connectBtn">Connect</button>

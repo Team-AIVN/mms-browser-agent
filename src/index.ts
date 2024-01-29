@@ -17,24 +17,28 @@ import {
 import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
 import "bootstrap";
+import {Certificate} from "pkijs";
 
 console.log("Hello World!");
 
-let ownMrn = "urn:mrn:mcp:device:idp1:org1:" + uuidv4().slice(0, 8);
+let ownMrn = "";
 
 const connectContainer = document.getElementById("connectContainer") as HTMLDivElement;
 const receiveContainer = document.getElementById("receiveContainer") as HTMLDivElement;
 const urlInput = document.getElementById("edgeRouterAddr") as HTMLSelectElement;
-const nameInput = document.getElementById("nameField") as HTMLInputElement;
-const mrnInput = document.getElementById("mrnField") as HTMLInputElement;
 const connectBtn = document.getElementById("connectBtn") as HTMLButtonElement;
+
+const connTypeSelect = document.getElementById("connectionTypeSelect") as HTMLSelectElement;
+const certInputDiv = document.getElementById("certInputDiv") as HTMLDivElement;
+const certFileInput = document.getElementById("certInput") as HTMLInputElement;
+const privateKeyFileInput = document.getElementById("privateKeyInput") as HTMLInputElement;
 
 const mrnH3 = document.getElementById("mrnH3") as HTMLTextAreaElement;
 mrnH3.textContent = ownMrn;
 
 const msgContainer = document.getElementById("msgContainer") as HTMLDivElement;
+const sendContainer = document.getElementById("sendContainer") as HTMLDivElement;
 const msgArea = document.getElementById("msgArea") as HTMLTextAreaElement;
-const receiverSelect = document.getElementById("receiver") as HTMLSelectElement;
 const receiverMrnSelect = document.getElementById("receiverMrn") as HTMLSelectElement;
 const sendBtn = document.getElementById("sendBtn") as HTMLButtonElement;
 const disconnectBtn = document.getElementById("disconnectBtn") as HTMLButtonElement;
@@ -46,6 +50,190 @@ const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElem
 interface Subscription {
     value: string,
     name: string,
+}
+
+let authenticated: boolean;
+
+connTypeSelect.addEventListener("change", () => {
+    authenticated = connTypeSelect.value === "authenticated";
+    certInputDiv.hidden = !authenticated;
+});
+
+let certificate: Certificate;
+let privateKey: CryptoKey;
+
+let ws: WebSocket;
+let reconnectToken: string;
+let lastSentMessage: MmtpMessage;
+
+connectBtn.addEventListener("click", async () => {
+    if (!authenticated) {
+        alert("Please choose a connection type");
+        location.reload();
+    }
+
+    if (authenticated) {
+        await loadCertAndPrivateKeyFromFiles();
+        for (const rdn of certificate.subject.typesAndValues) {
+            if (rdn.type === "0.9.2342.19200300.100.1.1") {
+                ownMrn = rdn.value.valueBlock.value;
+                break;
+            }
+        }
+        console.log(ownMrn);
+    }
+
+    let wsUrl = urlInput.value;
+    if (wsUrl === "") {
+        alert("You need to choose an Edge Router to connect to!");
+        location.reload();
+    } else if (!wsUrl.startsWith("ws")) {
+        wsUrl = "ws://" + wsUrl;
+    }
+    const edgeRouter = urlInput.options[urlInput.selectedIndex].textContent;
+
+    mrnH3.hidden = false;
+
+    ws = new WebSocket(wsUrl);
+
+    ws.addEventListener("open", () => {
+        let initialized = false;
+
+        ws.onmessage = async (msgEvent) => {
+            console.log("Message received:", msgEvent.data);
+            const data = msgEvent.data as Blob;
+            const bytes = await data.arrayBuffer();
+            const response = MmtpMessage.decode(new Uint8Array(bytes));
+            console.log(response);
+
+            if (response.responseMessage?.responseToUuid !== lastSentMessage.uuid) {
+                console.error("The UUID of the last sent message does not match the UUID being responded to");
+            }
+            if (!initialized) {
+                // do something
+                connectContainer.hidden = true;
+                msgContainer.hidden = false;
+                reconnectToken = response.responseMessage.reconnectToken;
+
+                if (authenticated) {
+                    sendContainer.hidden = false;
+                    const subMsg = MmtpMessage.create({
+                        msgType: MsgType.PROTOCOL_MESSAGE,
+                        uuid: uuidv4(),
+                        protocolMessage: ProtocolMessage.create({
+                            protocolMsgType: ProtocolMessageType.SUBSCRIBE_MESSAGE,
+                            subscribeMessage: Subscribe.create({
+                                directMessages: true
+                            })
+                        })
+                    });
+                    msgBlob = MmtpMessage.encode(subMsg).finish();
+
+                    lastSentMessage = subMsg;
+
+                    ws.send(msgBlob);
+                }
+                initialized = true;
+
+                disconnectBtn.addEventListener("click", () => {
+                    const disconnectMsg = MmtpMessage.create({
+                        msgType: MsgType.PROTOCOL_MESSAGE,
+                        uuid: uuidv4(),
+                        protocolMessage: ProtocolMessage.create({
+                            protocolMsgType: ProtocolMessageType.DISCONNECT_MESSAGE,
+                            disconnectMessage: Disconnect.create()
+                        })
+                    });
+
+                    msgBlob = MmtpMessage.encode(disconnectMsg).finish();
+
+                    lastSentMessage = disconnectMsg;
+                    ws.send(msgBlob);
+                });
+
+                await fetch(mrnStoreUrl + "/mrn", {
+                    method: "POST",
+                    body: JSON.stringify({mrn: ownMrn, edgeRouter: edgeRouter}),
+                    mode: "cors",
+                    headers: {"Content-Type": "application/json"}
+                });
+
+                disconnectBtn.hidden = false;
+                receiveContainer.hidden = false;
+            } else {
+                if (response.msgType == MsgType.RESPONSE_MESSAGE) {
+                    const msgs = response.responseMessage.applicationMessages;
+                    msgs.forEach(msg => {
+                        showReceivedMessage(msg);
+                    })
+                }
+            }
+        };
+
+        const connectMsg = MmtpMessage.create({
+            msgType: MsgType.PROTOCOL_MESSAGE,
+            uuid: uuidv4(),
+            protocolMessage: ProtocolMessage.create({
+                protocolMsgType: ProtocolMessageType.CONNECT_MESSAGE,
+                connectMessage: Connect.create({})
+            })
+        });
+        if (ownMrn) {
+            connectMsg.protocolMessage.connectMessage.ownMrn = ownMrn;
+        }
+        if (reconnectToken) {
+            connectMsg.protocolMessage.connectMessage.reconnectToken = reconnectToken;
+        }
+        let msgBlob = MmtpMessage.encode(connectMsg).finish();
+
+        lastSentMessage = connectMsg;
+        ws.send(msgBlob);
+    });
+
+    ws.addEventListener("close", evt => {
+        if (evt.code !== 1000) {
+            alert("Connection to Edge Router closed unexpectedly: " + evt.reason);
+        }
+        fetch(mrnStoreUrl + "/mrn/" + ownMrn, {
+            method: "DELETE",
+            mode: "cors"
+        }).then(() => location.reload());
+    });
+});
+
+async function loadCertAndPrivateKeyFromFiles() {
+    if (!certFileInput.files.length || !privateKeyFileInput.files.length) {
+        alert("Please provide a certificate and private key file")
+        location.reload()
+    }
+    const certPem = await certFileInput.files[0].text();
+    const certBytes = extractFromPem(certPem, "CERTIFICATE");
+    const privKeyPem = await privateKeyFileInput.files[0].text();
+    const privKeyBytes = extractFromPem(privKeyPem, "PRIVATE KEY");
+
+    certificate = Certificate.fromBER(certBytes);
+    privateKey = await crypto.subtle.importKey("pkcs8", privKeyBytes, {
+        name: "ECDSA",
+        namedCurve: "P-384"
+    }, false, ["sign"]);
+}
+
+function extractFromPem(pemInput: string, inputType: string): ArrayBuffer {
+    const b64 = pemInput.split(`-----BEGIN ${inputType}-----\n`)[1].split(`-----END ${inputType}-----`)[0].replace("\n", "");
+    return str2ab(atob(b64));
+}
+
+/*
+Convert a string into an ArrayBuffer
+from https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
+*/
+function str2ab(str: string) {
+    const buf = new ArrayBuffer(str.length);
+    const bufView = new Uint8Array(buf);
+    for (let i = 0, strLen = str.length; i < strLen; i++) {
+        bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
 }
 
 const possibleSubscriptions: Subscription[] = [
@@ -174,144 +362,7 @@ possibleSubscriptions.forEach(ps => {
     subjectSelect.appendChild(subjectOption);
 });
 
-nameInput.addEventListener("keyup", () => {
-    const nameInput = document.getElementById("nameField") as HTMLInputElement;
-    let name = nameInput.value;
-    name = name.toLowerCase().trim().replace(/\s+/g, "-");
-    ownMrn = "urn:mrn:mcp:device:idp1:org1:" + name;
-    mrnInput.value = ownMrn;
-})
-
-
-let ws: WebSocket;
-let reconnectToken: string;
-let lastSentMessage: MmtpMessage;
-
 const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the word "FILE"
-
-connectBtn.addEventListener("click", () => {
-    let wsUrl = urlInput.value;
-    if (wsUrl === "") {
-        alert("You need to choose an Edge Router to connect to!");
-        location.reload();
-    } else if (!wsUrl.startsWith("ws")) {
-        wsUrl = "ws://" + wsUrl;
-    }
-
-    const edgeRouter = urlInput.options[urlInput.selectedIndex].textContent;
-
-    const nameInput = document.getElementById("nameField") as HTMLInputElement;
-    let name = nameInput.value;
-    if (name !== "") {
-        name = name.toLowerCase().trim().replace(/\s+/g, "-");
-        ownMrn = "urn:mrn:mcp:device:idp1:org1:" + name;
-        mrnH3.textContent = ownMrn;
-    }
-
-    mrnH3.hidden = false;
-
-    ws = new WebSocket(wsUrl);
-
-    ws.addEventListener("open", () => {
-        let initialized = false;
-
-        ws.onmessage = async (msgEvent) => {
-            console.log("Message received:", msgEvent.data);
-            const data = msgEvent.data as Blob;
-            const bytes = await data.arrayBuffer();
-            const response = MmtpMessage.decode(new Uint8Array(bytes));
-            console.log(response);
-
-            if (response.responseMessage?.responseToUuid !== lastSentMessage.uuid) {
-                console.error("The UUID of the last sent message does not match the UUID being responded to");
-            }
-            if (!initialized) {
-                // do something
-                connectContainer.hidden = true;
-                msgContainer.hidden = false;
-                reconnectToken = response.responseMessage.reconnectToken;
-
-                const subMsg = MmtpMessage.create({
-                    msgType: MsgType.PROTOCOL_MESSAGE,
-                    uuid: uuidv4(),
-                    protocolMessage: ProtocolMessage.create({
-                        protocolMsgType: ProtocolMessageType.SUBSCRIBE_MESSAGE,
-                        subscribeMessage: Subscribe.create({
-                            directMessages: true
-                        })
-                    })
-                });
-                msgBlob = MmtpMessage.encode(subMsg).finish();
-
-                lastSentMessage = subMsg;
-                initialized = true;
-
-                ws.send(msgBlob);
-
-                disconnectBtn.addEventListener("click", () => {
-                    const disconnectMsg = MmtpMessage.create({
-                        msgType: MsgType.PROTOCOL_MESSAGE,
-                        uuid: uuidv4(),
-                        protocolMessage: ProtocolMessage.create({
-                            protocolMsgType: ProtocolMessageType.DISCONNECT_MESSAGE,
-                            disconnectMessage: Disconnect.create()
-                        })
-                    });
-
-                    msgBlob = MmtpMessage.encode(disconnectMsg).finish();
-
-                    lastSentMessage = disconnectMsg;
-                    ws.send(msgBlob);
-                });
-
-                await fetch(mrnStoreUrl + "/mrn", {
-                    method: "POST",
-                    body: JSON.stringify({mrn: ownMrn, edgeRouter: edgeRouter}),
-                    mode: "cors",
-                    headers: {"Content-Type": "application/json"}
-                });
-
-                disconnectBtn.hidden = false;
-                receiveContainer.hidden = false;
-            } else {
-                if (response.msgType == MsgType.RESPONSE_MESSAGE) {
-                    const msgs = response.responseMessage.applicationMessages;
-                    msgs.forEach(msg => {
-                        showReceivedMessage(msg);
-                    })
-                }
-            }
-        };
-
-        const connectMsg = MmtpMessage.create({
-            msgType: MsgType.PROTOCOL_MESSAGE,
-            uuid: uuidv4(),
-            protocolMessage: ProtocolMessage.create({
-                protocolMsgType: ProtocolMessageType.CONNECT_MESSAGE,
-                connectMessage: Connect.create({
-                    ownMrn: ownMrn
-                })
-            })
-        });
-        if (reconnectToken) {
-            connectMsg.protocolMessage.connectMessage.reconnectToken = reconnectToken;
-        }
-        let msgBlob = MmtpMessage.encode(connectMsg).finish();
-
-        lastSentMessage = connectMsg;
-        ws.send(msgBlob);
-    });
-
-    ws.addEventListener("close", evt => {
-        if (evt.code !== 1000) {
-            alert("Connection to Edge Router closed unexpectedly: " + evt.reason);
-        }
-        fetch(mrnStoreUrl + "/mrn/" + ownMrn, {
-            method: "DELETE",
-            mode: "cors"
-        }).then(() => location.reload());
-    });
-});
 
 function showReceivedMessage(msg: IApplicationMessage) {
     const payload = msg.body;
@@ -363,7 +414,7 @@ function bytesToBase64(bytes: Uint8Array): string {
     return btoa(binString);
 }
 
-sendBtn.addEventListener("click", () => {
+sendBtn.addEventListener("click", async () => {
     if (!mrnRadio.checked && !subjectRadio.checked) {
         alert("You need to choose message type!");
     }
@@ -377,6 +428,9 @@ sendBtn.addEventListener("click", () => {
         bytes = encoder.encode(text);
     }
 
+    const signature = await crypto.subtle.sign({name: "ECDSA", hash: "SHA-384"}, privateKey, bytes);
+    const b64Signature = btoa(new Uint8Array(signature).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+
     const sendMsg = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
         uuid: uuidv4(),
@@ -386,9 +440,10 @@ sendBtn.addEventListener("click", () => {
                 applicationMessage: ApplicationMessage.create({
                     header: ApplicationMessageHeader.create({
                         bodySizeNumBytes: bytes.byteLength,
-                        sender: ownMrn
+                        sender: ownMrn,
                     }),
-                    body: bytes
+                    body: bytes,
+                    signature: b64Signature
                 })
             })
         })
@@ -404,6 +459,7 @@ sendBtn.addEventListener("click", () => {
     }
 
     const toBeSent = MmtpMessage.encode(sendMsg).finish();
+    console.log("MMTP message size: ", toBeSent.length);
     lastSentMessage = sendMsg;
     ws.send(toBeSent);
 
@@ -461,12 +517,3 @@ const unloadedState = document.getElementById('file-state-unloaded');
 
 loadedState.style.display = 'none';
 unloadedState.style.display = 'block';
-
-function downloadFile(fileName: string, content: Uint8Array) {
-    const downloadLink = document.createElement("a");
-    const file = new Blob([content], {type: "text/plain"});
-
-    downloadLink.download = fileName;
-    downloadLink.href = URL.createObjectURL(file);
-    downloadLink.click();
-}
