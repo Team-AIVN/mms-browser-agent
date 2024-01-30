@@ -226,7 +226,7 @@ async function loadCertAndPrivateKeyFromFiles() {
 }
 
 function extractFromPem(pemInput: string, inputType: string): ArrayBuffer {
-    const b64 = pemInput.split(`-----BEGIN ${inputType}-----\n`)[1].split(`-----END ${inputType}-----`)[0].replace("\n", "");
+    const b64 = pemInput.split(new RegExp(`-----BEGIN ${inputType}-----\r?\n?`))[1].split(`-----END ${inputType}-----`)[0];
     return str2ab(atob(b64));
 }
 
