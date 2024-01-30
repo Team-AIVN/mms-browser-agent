@@ -435,8 +435,8 @@ sendBtn.addEventListener("click", async () => {
         bytes = encoder.encode(text);
     }
 
-    const signature = await crypto.subtle.sign({name: "ECDSA", hash: "SHA-384"}, privateKey, bytes);
-    const b64Signature = btoa(new Uint8Array(signature).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+    const signature = new Uint8Array(await crypto.subtle.sign({name: "ECDSA", hash: "SHA-384"}, privateKey, bytes));
+    const b64Signature = btoa(String.fromCodePoint(...signature));
 
     const sendMsg = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
