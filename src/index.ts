@@ -53,9 +53,11 @@ interface Subscription {
 }
 
 let authenticated: boolean;
+let connectionType: string;
 
 connTypeSelect.addEventListener("change", () => {
     authenticated = connTypeSelect.value === "authenticated";
+    connectionType = connTypeSelect.value;
     certInputDiv.hidden = !authenticated;
 });
 
@@ -67,7 +69,7 @@ let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
 
 connectBtn.addEventListener("click", async () => {
-    if (!authenticated) {
+    if (!connectionType) {
         alert("Please choose a connection type");
         location.reload();
     }
@@ -151,12 +153,14 @@ connectBtn.addEventListener("click", async () => {
                     ws.send(msgBlob);
                 });
 
-                await fetch(mrnStoreUrl + "/mrn", {
-                    method: "POST",
-                    body: JSON.stringify({mrn: ownMrn, edgeRouter: edgeRouter}),
-                    mode: "cors",
-                    headers: {"Content-Type": "application/json"}
-                });
+                if (ownMrn) {
+                    await fetch(mrnStoreUrl + "/mrn", {
+                        method: "POST",
+                        body: JSON.stringify({mrn: ownMrn, edgeRouter: edgeRouter}),
+                        mode: "cors",
+                        headers: {"Content-Type": "application/json"}
+                    });
+                }
 
                 disconnectBtn.hidden = false;
                 receiveContainer.hidden = false;
@@ -190,14 +194,17 @@ connectBtn.addEventListener("click", async () => {
         ws.send(msgBlob);
     });
 
-    ws.addEventListener("close", evt => {
+    ws.addEventListener("close", async evt => {
         if (evt.code !== 1000) {
             alert("Connection to Edge Router closed unexpectedly: " + evt.reason);
         }
-        fetch(mrnStoreUrl + "/mrn/" + ownMrn, {
-            method: "DELETE",
-            mode: "cors"
-        }).then(() => location.reload());
+        if (ownMrn) {
+            await fetch(mrnStoreUrl + "/mrn/" + ownMrn, {
+                method: "DELETE",
+                mode: "cors"
+            });
+        }
+        location.reload();
     });
 });
 
