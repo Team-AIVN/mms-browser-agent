@@ -33,7 +33,7 @@
     "bootstrap": "^5.3.1",
     "long": "^5.2.3",
     "pkijs": "^3.0.15",
-    "protobufjs": "^7.2.4",
+    "protobufjs": "^7.2.6",
     "uuid": "^9.0.0"
   }
 }
