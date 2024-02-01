@@ -263,7 +263,7 @@ const possibleSubscriptions: Subscription[] = [
 
 let encodedFile: Uint8Array;
 
-const mrnStoreUrl = "http://20.91.195.244";
+const mrnStoreUrl = "http://20.91.195.244:81";
 
 interface Agent {
     mrn: string,
