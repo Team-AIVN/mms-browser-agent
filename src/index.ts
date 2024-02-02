@@ -47,7 +47,7 @@ const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElem
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
-const mrnStoreUrl = "https://mrn-store.maritimeconnectivity.net";
+const mrnStoreUrl = "https://mrn-store.dmc.international";
 
 interface Subscription {
     value: string,
