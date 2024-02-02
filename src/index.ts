@@ -47,6 +47,8 @@ const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElem
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
+const mrnStoreUrl = "https://mrn-store.maritimeconnectivity.net";
+
 interface Subscription {
     value: string,
     name: string,
@@ -262,8 +264,6 @@ const possibleSubscriptions: Subscription[] = [
     }];
 
 let encodedFile: Uint8Array;
-
-const mrnStoreUrl = "http://20.91.195.244:81";
 
 interface Agent {
     mrn: string,
