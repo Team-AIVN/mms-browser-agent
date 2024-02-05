@@ -19,7 +19,7 @@
     "prettier": "^3.0.1",
     "protobufjs-cli": "^1.1.1",
     "sass": "^1.64.2",
-    "sass-loader": "^13.3.2",
+    "sass-loader": "^14.1.0",
     "style-loader": "^3.3.3",
     "ts-loader": "^9.4.4",
     "typescript": "^5.1.6",
