@@ -215,10 +215,22 @@ async function loadCertAndPrivateKeyFromFiles() {
         alert("Please provide a certificate and private key file")
         location.reload()
     }
-    const certPem = await certFileInput.files[0].text();
-    const certBytes = extractFromPem(certPem, "CERTIFICATE");
-    const privKeyPem = await privateKeyFileInput.files[0].text();
-    const privKeyBytes = extractFromPem(privKeyPem, "PRIVATE KEY");
+
+    const certString = await certFileInput.files[0].text();
+    let certBytes: ArrayBuffer;
+    if (certString.startsWith("-----BEGIN")) { // Is this PEM encoded?
+        certBytes = extractFromPem(certString, "CERTIFICATE");
+    } else { // Nope, it is probably just DER encoded then
+        certBytes = await certFileInput.files[0].arrayBuffer();
+    }
+
+    const privKeyString = await privateKeyFileInput.files[0].text();
+    let privKeyBytes: ArrayBuffer;
+    if (privKeyString.startsWith("-----BEGIN")) {
+        privKeyBytes = extractFromPem(privKeyString, "PRIVATE KEY");
+    } else {
+        privKeyBytes = await privateKeyFileInput.files[0].arrayBuffer();
+    }
 
     certificate = Certificate.fromBER(certBytes);
     privateKey = await crypto.subtle.importKey("pkcs8", privKeyBytes, {
