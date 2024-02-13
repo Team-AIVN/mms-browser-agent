@@ -438,17 +438,18 @@ sendBtn.addEventListener("click", async () => {
         alert("You need to choose message type!");
     }
 
-    let bytes: Uint8Array;
+    let body: Uint8Array;
     if (encodedFile) {
-        bytes = encodedFile;
+        body = encodedFile;
     } else {
         const text = msgArea.value;
         const encoder = new TextEncoder();
-        bytes = encoder.encode(text);
+        body = encoder.encode(text);
     }
 
-    const signature = new Uint8Array(await crypto.subtle.sign({name: "ECDSA", hash: "SHA-384"}, privateKey, bytes));
-    const b64Signature = btoa(String.fromCodePoint(...signature));
+    // set expiration to be one hour from now
+    const expires = new Date();
+    expires.setTime(expires.getTime() + 3_600_000);
 
     const sendMsg = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
@@ -458,27 +459,58 @@ sendBtn.addEventListener("click", async () => {
             sendMessage: Send.create({
                 applicationMessage: ApplicationMessage.create({
                     header: ApplicationMessageHeader.create({
-                        bodySizeNumBytes: bytes.byteLength,
+                        expires: expires.getTime(),
                         sender: ownMrn,
+                        bodySizeNumBytes: body.length,
                     }),
-                    body: bytes,
-                    signature: b64Signature
+                    body: body,
                 })
             })
         })
     });
+
+    let uint8Arrays: Uint8Array[] = [];
+    const encoder = new TextEncoder();
 
     if (mrnRadio.checked) {
         const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
         sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
             recipients: [receiver]
         });
+        uint8Arrays.push(encoder.encode(receiver));
     } else if (subjectRadio.checked) {
-        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subjectSelect.options[subjectSelect.selectedIndex].value;
+        const subject = subjectSelect.options[subjectSelect.selectedIndex].value;
+        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subject;
+        uint8Arrays.push(encoder.encode(subject));
     }
 
+    uint8Arrays.push(encoder.encode(expires.getTime().toString()));
+    uint8Arrays.push(encoder.encode(ownMrn));
+    uint8Arrays.push(encoder.encode(body.length.toString()));
+    uint8Arrays.push(body);
+
+    let length = 0;
+    for (const array of uint8Arrays) {
+        length += array.length;
+    }
+
+    let bytesToBeSigned = new Uint8Array(length);
+    let offset = 0;
+    for (const array of uint8Arrays) {
+        bytesToBeSigned.set(array, offset);
+        offset += array.length;
+    }
+
+    console.log(bytesToBeSigned);
+
+    const signature = new Uint8Array(await crypto.subtle.sign({
+        name: "ECDSA",
+        hash: "SHA-384"
+    }, privateKey, bytesToBeSigned));
+    sendMsg.protocolMessage.sendMessage.applicationMessage.signature = btoa(String.fromCodePoint(...signature));
+
     const toBeSent = MmtpMessage.encode(sendMsg).finish();
-    console.log("MMTP message size: ", toBeSent.length);
+    console.log("MMTP message: ", sendMsg);
     lastSentMessage = sendMsg;
     ws.send(toBeSent);
 
