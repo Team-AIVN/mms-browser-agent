@@ -18,6 +18,8 @@ import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
 import "bootstrap";
 import {Certificate} from "pkijs";
+import {Integer, Sequence} from "asn1js";
+import {bufToBigint} from "bigint-conversion";
 
 console.log("Hello World!");
 
@@ -501,13 +503,20 @@ sendBtn.addEventListener("click", async () => {
         offset += array.length;
     }
 
-    console.log(bytesToBeSigned);
-
     const signature = new Uint8Array(await crypto.subtle.sign({
         name: "ECDSA",
         hash: "SHA-384"
     }, privateKey, bytesToBeSigned));
-    sendMsg.protocolMessage.sendMessage.applicationMessage.signature = btoa(String.fromCodePoint(...signature));
+
+    const r = signature.slice(0, signature.length / 2);
+    const s = signature.slice(signature.length / 2, signature.length);
+
+    let sequence = new Sequence();
+    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(r)));
+    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(s)));
+    const derSignature = new Uint8Array(sequence.toBER());
+
+    sendMsg.protocolMessage.sendMessage.applicationMessage.signature = btoa(String.fromCodePoint(...derSignature));
 
     const toBeSent = MmtpMessage.encode(sendMsg).finish();
     console.log("MMTP message: ", sendMsg);
