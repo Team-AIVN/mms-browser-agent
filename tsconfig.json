@@ -2,10 +2,10 @@
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
     "noImplicitAny": true,
-    "module": "nodenext",
+    "module": "es2022",
     "target": "es2022",
     "allowJs": true,
-    "moduleResolution": "nodenext"
+    "moduleResolution": "bundler"
   },
   "files": ["src/index.ts"]
 }
