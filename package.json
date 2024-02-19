@@ -33,7 +33,7 @@
     "@popperjs/core": "^2.11.8",
     "asn1js": "^3.0.5",
     "bigint-conversion": "^2.4.3",
-    "bootstrap": "^5.3.1",
+    "bootstrap": "^5.3.2",
     "jquery": "^3.7.1",
     "long": "^5.2.3",
     "pkijs": "^3.0.15",
