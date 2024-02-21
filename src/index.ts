@@ -20,6 +20,7 @@ import "bootstrap";
 import {Certificate} from "pkijs";
 import {Integer, Sequence} from "asn1js";
 import {bufToBigint} from "bigint-conversion";
+import {ResponseSearchObject} from "./SecomSearch";
 
 console.log("Hello World!");
 
@@ -50,11 +51,24 @@ const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
 const mrnStoreUrl = "https://mrn-store.dmc.international";
+const msrSecomSearchUrl = "https://msr-test.maritimeconnectivity.net/api/secom/v1/searchService";
 
-interface Subscription {
+interface Subject {
     value: string,
     name: string,
 }
+
+interface ServiceProvider {
+    mrn: string,
+    certificates: Certificate[]
+}
+
+interface Subscription {
+    subject: string,
+    serviceProviders: ServiceProvider[]
+}
+
+const subscriptions: Map<string, Subscription> = new Map();
 
 let authenticated: boolean;
 let connectionType: string;
@@ -71,6 +85,24 @@ let privateKey: CryptoKey;
 let ws: WebSocket;
 let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
+
+let query = {
+    freetext: 'instanceId: "urn:mrn:mcp:service:mcc-test:core:instance:test" AND version: 0.2'
+};
+
+fetch(msrSecomSearchUrl, {
+    method: 'POST',
+    body: JSON.stringify(query),
+    headers: {
+        "Content-Type": "application/json"
+    }
+})
+    .then(r => r.json())
+    .then((j: ResponseSearchObject) => {
+        j.searchServiceResult.forEach(ssr => {
+            console.log(ssr.certificates);
+        })
+    });
 
 connectBtn.addEventListener("click", async () => {
     if (!connectionType) {
@@ -259,9 +291,9 @@ function str2ab(str: string) {
     return buf;
 }
 
-const possibleSubscriptions: Subscription[] = [
+const possibleSubscriptions: Subject[] = [
     {
-        value: "Urn:mrn:mcp:service:dk-dmi:weather_on_route",
+        value: "urn:mrn:mcp:service:dk-dmi:weather_on_route",
         name: "Weather on route",
     },
     {
@@ -275,7 +307,12 @@ const possibleSubscriptions: Subscription[] = [
     {
         value: "Weather",
         name: "Weather",
-    }];
+    },
+    {
+        value: "NW-AU",
+        name: "S-124 from Australia"
+    }
+];
 
 let encodedFile: Uint8Array;
 
@@ -287,7 +324,6 @@ interface Agent {
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
 const subjectRadio = document.getElementById('subject') as HTMLInputElement;
 
-// MRN 라디오 버튼에 이벤트 리스너 추가
 mrnRadio.addEventListener('change', (event) => {
     if (mrnRadio.checked) {
         subjectSelect.hidden = true;
@@ -308,7 +344,6 @@ mrnRadio.addEventListener('change', (event) => {
     }
 });
 
-// Subject 라디오 버튼에 이벤트 리스너 추가
 subjectRadio.addEventListener('change', (event) => {
     if (subjectRadio.checked) {
         receiverMrnSelect.hidden = true;
@@ -337,14 +372,55 @@ possibleSubscriptions.forEach(ps => {
     unsubButton.hidden = true;
     li.appendChild(unsubButton);
 
-    subButton.addEventListener("click", () => {
+    subButton.addEventListener("click", async () => {
+        let subject = ps.value;
+        if (ps.value === "NW-AU") {
+            const auWkt = "POLYGON ((-257.167969 -26.902477, -242.753906 -14.774883, -227.285156 -7.885147, -206.71875 -12.21118, -203.027344 -36.597889, -213.222656 -47.872144, -250.488281 -39.504041, -257.167969 -26.902477))";
+            const body = {
+                query: {
+                    dataProductType: "S124"
+                },
+                geometry: auWkt
+            };
+            const response = await fetch(msrSecomSearchUrl, {
+                method: "POST",
+                body: JSON.stringify(body),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+            const responseSearchObject: ResponseSearchObject = await response.json();
+            responseSearchObject.searchServiceResult.forEach(sr => {
+                if (sr.endpointUri.startsWith("urn:mrn")) { // this is an MMS subject
+                    subject = sr.endpointUri;
+                    const certs: Certificate[] = sr.certificates.map(c => {
+                        const pem = c.certificate;
+                        const der = extractFromPem(pem, "CERTIFICATE");
+                        return Certificate.fromBER(der);
+                    }, []);
+                    const serviceProvider: ServiceProvider = {
+                        mrn: sr.instanceId,
+                        certificates: certs
+                    };
+                    let subscription = subscriptions.get(subject);
+                    if (!subscription) {
+                        subscription = {
+                            subject: subject,
+                            serviceProviders: []
+                        };
+                    }
+                    subscription.serviceProviders.push(serviceProvider);
+                    subscriptions.set(subject, subscription);
+                }
+            });
+        }
         const subMsg = MmtpMessage.create({
             uuid: uuidv4(),
             msgType: MsgType.PROTOCOL_MESSAGE,
             protocolMessage: ProtocolMessage.create({
                 protocolMsgType: ProtocolMessageType.SUBSCRIBE_MESSAGE,
                 subscribeMessage: Subscribe.create({
-                    subject: ps.value
+                    subject: subject
                 })
             })
         });
@@ -357,13 +433,17 @@ possibleSubscriptions.forEach(ps => {
     });
 
     unsubButton.addEventListener("click", () => {
+        let subject = ps.value;
+        if (subject === "NW-AU") {
+            // Do something here
+        }
         const unsubMsg = MmtpMessage.create({
             uuid: uuidv4(),
             msgType: MsgType.PROTOCOL_MESSAGE,
             protocolMessage: ProtocolMessage.create({
                 protocolMsgType: ProtocolMessageType.UNSUBSCRIBE_MESSAGE,
                 unsubscribeMessage: Unsubscribe.create({
-                    subject: ps.value
+                    subject: subject
                 })
             })
         });
