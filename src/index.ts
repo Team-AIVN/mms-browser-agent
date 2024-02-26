@@ -51,7 +51,7 @@ const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
 const mrnStoreUrl = "https://mrn-store.dmc.international";
-const msrSecomSearchUrl = "https://msr-test.maritimeconnectivity.net/api/secom/v1/searchService";
+const msrSecomSearchUrl = "https://msr.maritimeconnectivity.net/api/secom/v1/searchService";
 
 interface Subject {
     value: string,
