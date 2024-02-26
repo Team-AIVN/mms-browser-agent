@@ -51,7 +51,7 @@ devDependencies:
     version: 6.10.0(webpack@5.90.3)
   html-webpack-plugin:
     specifier: ^5.5.3
-    version: 5.5.3(webpack@5.90.3)
+    version: 5.6.0(webpack@5.90.3)
   postcss-loader:
     specifier: ^8.1.0
     version: 8.1.0(postcss@8.4.33)(typescript@5.3.3)(webpack@5.90.3)
@@ -3196,14 +3196,20 @@ packages:
       he: 1.2.0
       param-case: 3.0.4
       relateurl: 0.2.7
-      terser: 5.19.2
+      terser: 5.27.0
     dev: true
 
-  /html-webpack-plugin@5.5.3(webpack@5.90.3):
-    resolution: {integrity: sha512-6YrDKTuqaP/TquFH7h4srYWsZx+x6k6+FbsTm0ziCwGHDP78Unr1r9F/H4+sGmMbX08GQcJ+K64x55b+7VM/jg==}
+  /html-webpack-plugin@5.6.0(webpack@5.90.3):
+    resolution: {integrity: sha512-iwaY4wzbe48AfKLZ/Cc8k0L+FKG6oSNRaZ8x5A/T/IVDGyXcbHncM9TdDa93wn0FsSm82FhTKW7f3vS61thXAw==}
     engines: {node: '>=10.13.0'}
     peerDependencies:
+      '@rspack/core': 0.x || 1.x
       webpack: ^5.20.0
+    peerDependenciesMeta:
+      '@rspack/core':
+        optional: true
+      webpack:
+        optional: true
     dependencies:
       '@types/html-minifier-terser': 6.1.0
       html-minifier-terser: 6.1.0
@@ -5053,17 +5059,6 @@ packages:
       serialize-javascript: 6.0.1
       terser: 5.27.0
       webpack: 5.90.3(webpack-cli@5.1.4)
-    dev: true
-
-  /terser@5.19.2:
-    resolution: {integrity: sha512-qC5+dmecKJA4cpYxRa5aVkKehYsQKc+AHeKl0Oe62aYjBL8ZA33tTljktDHJSaxxMnbI5ZYw+o/S2DxxLu8OfA==}
-    engines: {node: '>=10'}
-    hasBin: true
-    dependencies:
-      '@jridgewell/source-map': 0.3.5
-      acorn: 8.10.0
-      commander: 2.20.3
-      source-map-support: 0.5.21
     dev: true
 
   /terser@5.27.0:
