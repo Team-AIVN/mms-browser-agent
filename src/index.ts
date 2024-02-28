@@ -375,7 +375,7 @@ possibleSubscriptions.forEach(ps => {
             responseSearchObject.searchServiceResult.forEach(sr => {
                 if (sr.endpointUri.startsWith("urn:mrn")) { // this is an MMS subject
                     subject = sr.endpointUri;
-                    const certs: Certificate[] = sr.certificates.map(c => {
+                    const certs: Certificate[] = sr.certificates?.map(c => {
                         const pem = c.certificate;
                         const der = extractFromPem(pem, "CERTIFICATE");
                         return Certificate.fromBER(der);
