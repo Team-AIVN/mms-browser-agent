@@ -86,24 +86,6 @@ let ws: WebSocket;
 let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
 
-let query = {
-    freetext: 'instanceId: "urn:mrn:mcp:service:mcc-test:core:instance:test" AND version: 0.2'
-};
-
-fetch(msrSecomSearchUrl, {
-    method: 'POST',
-    body: JSON.stringify(query),
-    headers: {
-        "Content-Type": "application/json"
-    }
-})
-    .then(r => r.json())
-    .then((j: ResponseSearchObject) => {
-        j.searchServiceResult.forEach(ssr => {
-            console.log(ssr.certificates);
-        })
-    });
-
 connectBtn.addEventListener("click", async () => {
     if (!connectionType) {
         alert("Please choose a connection type");
