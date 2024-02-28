@@ -18,7 +18,7 @@ import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
 import "bootstrap";
 import {Certificate} from "pkijs";
-import {Integer, Sequence} from "asn1js";
+import {fromBER, Integer, Sequence} from "asn1js";
 import {bufToBigint} from "bigint-conversion";
 import {ResponseSearchObject} from "./SecomSearch";
 
@@ -52,6 +52,9 @@ const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElem
 
 const mrnStoreUrl = "https://mrn-store.dmc.international";
 const msrSecomSearchUrl = "https://msr.maritimeconnectivity.net/api/secom/v1/searchService";
+
+const greenCheckMark = "\u2705";
+const redCheckMark = "\u274C";
 
 interface Subject {
     value: string,
@@ -185,9 +188,10 @@ connectBtn.addEventListener("click", async () => {
             } else {
                 if (response.msgType == MsgType.RESPONSE_MESSAGE) {
                     const msgs = response.responseMessage.applicationMessages;
-                    msgs.forEach(msg => {
-                        showReceivedMessage(msg);
-                    })
+                    for (const msg of msgs) {
+                        const validSignature = await verifySignatureOnMessage(msg);
+                        showReceivedMessage(msg, validSignature);
+                    }
                 }
             }
         };
@@ -445,9 +449,63 @@ possibleSubscriptions.forEach(ps => {
     subjectSelect.appendChild(subjectOption);
 });
 
+async function verifySignatureOnMessage(msg: IApplicationMessage) {
+    // Currently we only check subject-casts
+    if (msg.header.subject) {
+        const signature = Uint8Array.from(atob(msg.signature), c => c.charCodeAt(0));
+        const signatureSequence = fromBER(signature).result as Sequence;
+        let r = (signatureSequence.valueBlock.value.at(0) as Integer).valueBlock.valueHexView;
+        if (r.length === 49) {
+            r = r.subarray(1, r.length);
+        }
+        let s = (signatureSequence.valueBlock.value.at(1) as Integer).valueBlock.valueHexView;
+        if (s.length === 49) {
+            s = s.subarray(1, s.length);
+        }
+        const rawSignature = new Uint8Array(r.length + s.length);
+        rawSignature.set(r, 0);
+        rawSignature.set(s, r.length);
+
+        const subject = msg.header.subject;
+
+        let uint8Arrays: Uint8Array[] = [];
+        const textEncoder = new TextEncoder();
+        uint8Arrays.push(textEncoder.encode(subject));
+        uint8Arrays.push(textEncoder.encode(msg.header.expires.toString(10)));
+        uint8Arrays.push(textEncoder.encode(msg.header.sender));
+        uint8Arrays.push(textEncoder.encode(msg.header.bodySizeNumBytes.toString()));
+        uint8Arrays.push(msg.body);
+
+        let length = uint8Arrays.reduce((acc, a) => acc + a.length, 0);
+        const bytesToBeVerified = new Uint8Array(length);
+        let offset = 0;
+        for (const array of uint8Arrays) {
+            bytesToBeVerified.set(array, offset);
+            offset += array.length;
+        }
+
+        const subscription = subscriptions.get(subject);
+        if (subscription) {
+            for (const serviceProvider of subscription.serviceProviders) {
+                for (const certificate of serviceProvider.certificates) {
+                    const publicKey = await certificate.getPublicKey();
+                    const valid = await crypto.subtle.verify({
+                        name: "ECDSA",
+                        hash: "SHA-384"
+                    }, publicKey, rawSignature, bytesToBeVerified);
+                    if (valid) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the word "FILE"
 
-function showReceivedMessage(msg: IApplicationMessage) {
+function showReceivedMessage(msg: IApplicationMessage, validSignature: boolean) {
     const payload = msg.body;
     const decoder = new TextDecoder();
     if (arraysEqual(payload.subarray(0, 4), fileBytesArray)) {
@@ -471,6 +529,7 @@ function showReceivedMessage(msg: IApplicationMessage) {
                     e.preventDefault();
                 };
                 incomingArea.append(downloadLink);
+                incomingArea.append(validSignature ? greenCheckMark : redCheckMark);
                 incomingArea.appendChild(document.createElement('br'));
                 break;
             }
@@ -478,6 +537,7 @@ function showReceivedMessage(msg: IApplicationMessage) {
     } else {
         const text = decoder.decode(payload);
         incomingArea.append(`${msg.header.sender} sent: ${text}`);
+        incomingArea.append(validSignature ? greenCheckMark : redCheckMark);
         incomingArea.appendChild(document.createElement('br'));
     }
 }
@@ -553,10 +613,7 @@ sendBtn.addEventListener("click", async () => {
     uint8Arrays.push(encoder.encode(body.length.toString()));
     uint8Arrays.push(body);
 
-    let length = 0;
-    for (const array of uint8Arrays) {
-        length += array.length;
-    }
+    let length = uint8Arrays.reduce((acc, a) => acc + a.length, 0);
 
     let bytesToBeSigned = new Uint8Array(length);
     let offset = 0;
