@@ -45,7 +45,7 @@ const msgArea = document.getElementById("msgArea") as HTMLTextAreaElement;
 const receiverMrnSelect = document.getElementById("receiverMrn") as HTMLSelectElement;
 const sendBtn = document.getElementById("sendBtn") as HTMLButtonElement;
 const disconnectBtn = document.getElementById("disconnectBtn") as HTMLButtonElement;
-const incomingArea = document.getElementById("incomingArea") as HTMLTextAreaElement;
+const incomingArea = document.getElementById("incomingArea") as HTMLDivElement;
 
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
@@ -338,6 +338,8 @@ subjectRadio.addEventListener('change', (event) => {
     }
 });
 
+let nwSubjectName: string;
+
 possibleSubscriptions.forEach(ps => {
     const li = document.createElement("li");
     li.classList.add("list-group-item");
@@ -376,9 +378,10 @@ possibleSubscriptions.forEach(ps => {
                 }
             });
             const responseSearchObject: ResponseSearchObject = await response.json();
-            responseSearchObject.searchServiceResult.forEach(sr => {
+            for (const sr of responseSearchObject.searchServiceResult) {
                 if (sr.endpointUri.startsWith("urn:mrn")) { // this is an MMS subject
                     subject = sr.endpointUri;
+                    nwSubjectName = subject;
                     const certs: Certificate[] = sr.certificates?.map(c => {
                         const pem = c.certificate;
                         const der = extractFromPem(pem, "CERTIFICATE");
@@ -397,8 +400,10 @@ possibleSubscriptions.forEach(ps => {
                     }
                     subscription.serviceProviders.push(serviceProvider);
                     subscriptions.set(subject, subscription);
+                    // right now we just handle the first result we find
+                    break;
                 }
-            });
+            }
         }
         const subMsg = MmtpMessage.create({
             uuid: uuidv4(),
@@ -421,7 +426,7 @@ possibleSubscriptions.forEach(ps => {
     unsubButton.addEventListener("click", () => {
         let subject = ps.value;
         if (subject === "NW-AU") {
-            // Do something here
+            subject = nwSubjectName;
         }
         const unsubMsg = MmtpMessage.create({
             uuid: uuidv4(),
@@ -449,7 +454,13 @@ possibleSubscriptions.forEach(ps => {
     subjectSelect.appendChild(subjectOption);
 });
 
-async function verifySignatureOnMessage(msg: IApplicationMessage) {
+interface SignatureVerificationResponse {
+    valid: boolean,
+    signer?: string,
+    serialNumber?: bigint
+}
+
+async function verifySignatureOnMessage(msg: IApplicationMessage): Promise<SignatureVerificationResponse> {
     // Currently we only check subject-casts
     if (msg.header.subject) {
         const signature = Uint8Array.from(atob(msg.signature), c => c.charCodeAt(0));
@@ -494,18 +505,22 @@ async function verifySignatureOnMessage(msg: IApplicationMessage) {
                         hash: "SHA-384"
                     }, publicKey, rawSignature, bytesToBeVerified);
                     if (valid) {
-                        return true;
+                        return {
+                            valid: true,
+                            signer: serviceProvider.mrn,
+                            serialNumber: certificate.serialNumber.toBigInt()
+                        };
                     }
                 }
             }
         }
     }
-    return false;
+    return {valid: false};
 }
 
 const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the word "FILE"
 
-function showReceivedMessage(msg: IApplicationMessage, validSignature: boolean) {
+function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
     const payload = msg.body;
     const decoder = new TextDecoder();
     if (arraysEqual(payload.subarray(0, 4), fileBytesArray)) {
@@ -529,17 +544,26 @@ function showReceivedMessage(msg: IApplicationMessage, validSignature: boolean) 
                     e.preventDefault();
                 };
                 incomingArea.append(downloadLink);
-                incomingArea.append(validSignature ? greenCheckMark : redCheckMark);
-                incomingArea.appendChild(document.createElement('br'));
                 break;
             }
         }
     } else {
         const text = decoder.decode(payload);
         incomingArea.append(`${msg.header.sender} sent: ${text}`);
-        incomingArea.append(validSignature ? greenCheckMark : redCheckMark);
-        incomingArea.appendChild(document.createElement('br'));
     }
+    const signatureStatusSpan = document.createElement("span");
+    signatureStatusSpan.style.marginLeft = "4px";
+    signatureStatusSpan.setAttribute("data-toggle", "tooltip");
+    signatureStatusSpan.setAttribute("data-placement", "right");
+    if (signatureVerificationResponse.valid) {
+        signatureStatusSpan.textContent = greenCheckMark;
+        signatureStatusSpan.title = `The signature was successfully verified using certificate for ${signatureVerificationResponse.signer} with serial number ${signatureVerificationResponse.serialNumber.toString()}`;
+    } else {
+        signatureStatusSpan.textContent = redCheckMark;
+        signatureStatusSpan.title = "The signature on the message could not be verified";
+    }
+    incomingArea.append(signatureStatusSpan);
+    incomingArea.appendChild(document.createElement('br'));
 }
 
 function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
