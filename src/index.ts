@@ -37,7 +37,6 @@ const certFileInput = document.getElementById("certInput") as HTMLInputElement;
 const privateKeyFileInput = document.getElementById("privateKeyInput") as HTMLInputElement;
 
 const mrnH3 = document.getElementById("mrnH3") as HTMLTextAreaElement;
-mrnH3.textContent = ownMrn;
 
 const msgContainer = document.getElementById("msgContainer") as HTMLDivElement;
 const sendContainer = document.getElementById("sendContainer") as HTMLDivElement;
@@ -99,6 +98,8 @@ connectBtn.addEventListener("click", async () => {
         for (const rdn of certificate.subject.typesAndValues) {
             if (rdn.type === "0.9.2342.19200300.100.1.1") {
                 ownMrn = rdn.value.valueBlock.value;
+                mrnH3.textContent = ownMrn;
+                mrnH3.hidden = false;
                 break;
             }
         }
@@ -113,8 +114,6 @@ connectBtn.addEventListener("click", async () => {
         wsUrl = "ws://" + wsUrl;
     }
     const edgeRouter = urlInput.options[urlInput.selectedIndex].textContent;
-
-    mrnH3.hidden = false;
 
     ws = new WebSocket(wsUrl);
 
