@@ -54,7 +54,6 @@ const mrnStoreUrl = "https://mrn-store.dmc.international";
 const msrSecomSearchUrl = "https://msr.maritimeconnectivity.net/api/secom/v1/searchService";
 
 const greenCheckMark = "\u2705";
-const redCheckMark = "\u274C";
 
 interface Subject {
     value: string,
@@ -551,19 +550,16 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
         const text = decoder.decode(payload);
         incomingArea.append(`${msg.header.sender} sent: ${text}`);
     }
-    const signatureStatusSpan = document.createElement("span");
-    signatureStatusSpan.style.marginLeft = "4px";
-    signatureStatusSpan.setAttribute("data-toggle", "tooltip");
-    signatureStatusSpan.setAttribute("data-placement", "right");
     if (signatureVerificationResponse.valid) {
+        const signatureStatusSpan = document.createElement("span");
+        signatureStatusSpan.style.marginLeft = "4px";
+        signatureStatusSpan.setAttribute("data-toggle", "tooltip");
+        signatureStatusSpan.setAttribute("data-placement", "right");
         signatureStatusSpan.textContent = greenCheckMark;
         signatureStatusSpan.title = `The signature was successfully verified using certificate for ${signatureVerificationResponse.signer} with serial number ${signatureVerificationResponse.serialNumber.toString()}`;
-    } else {
-        signatureStatusSpan.textContent = redCheckMark;
-        signatureStatusSpan.title = "The signature on the message could not be verified";
+        incomingArea.append(signatureStatusSpan);
+        incomingArea.appendChild(document.createElement('br'));
     }
-    incomingArea.append(signatureStatusSpan);
-    incomingArea.appendChild(document.createElement('br'));
 }
 
 function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
