@@ -54,7 +54,7 @@ devDependencies:
     version: 5.6.0(webpack@5.91.0)
   postcss-loader:
     specifier: ^8.1.0
-    version: 8.1.1(postcss@8.4.38)(typescript@5.4.3)(webpack@5.91.0)
+    version: 8.1.1(postcss@8.4.38)(typescript@5.4.4)(webpack@5.91.0)
   prettier:
     specifier: ^3.0.1
     version: 3.2.5
@@ -72,10 +72,10 @@ devDependencies:
     version: 3.3.4(webpack@5.91.0)
   ts-loader:
     specifier: ^9.4.4
-    version: 9.4.4(typescript@5.4.3)(webpack@5.91.0)
+    version: 9.4.4(typescript@5.4.4)(webpack@5.91.0)
   typescript:
     specifier: ^5.1.6
-    version: 5.4.3
+    version: 5.4.4
   webpack:
     specifier: ^5.90.0
     version: 5.91.0(webpack-cli@5.1.4)
@@ -2369,7 +2369,7 @@ packages:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
     dev: true
 
-  /cosmiconfig@9.0.0(typescript@5.4.3):
+  /cosmiconfig@9.0.0(typescript@5.4.4):
     resolution: {integrity: sha512-itvL5h8RETACmOTFc4UfIyB2RfEHi71Ax6E/PivVxq9NseKbOWpeyHEOIbmAw1rs8Ak0VursQNww7lf7YtUwzg==}
     engines: {node: '>=14'}
     peerDependencies:
@@ -2382,7 +2382,7 @@ packages:
       import-fresh: 3.3.0
       js-yaml: 4.1.0
       parse-json: 5.2.0
-      typescript: 5.4.3
+      typescript: 5.4.4
     dev: true
 
   /cross-spawn@7.0.3:
@@ -4180,7 +4180,7 @@ packages:
       tslib: 2.6.1
     dev: false
 
-  /postcss-loader@8.1.1(postcss@8.4.38)(typescript@5.4.3)(webpack@5.91.0):
+  /postcss-loader@8.1.1(postcss@8.4.38)(typescript@5.4.4)(webpack@5.91.0):
     resolution: {integrity: sha512-0IeqyAsG6tYiDRCYKQJLAmgQr47DX6N7sFSWvQxt6AcupX8DIdmykuk/o/tx0Lze3ErGHJEp5OSRxrelC6+NdQ==}
     engines: {node: '>= 18.12.0'}
     peerDependencies:
@@ -4193,7 +4193,7 @@ packages:
       webpack:
         optional: true
     dependencies:
-      cosmiconfig: 9.0.0(typescript@5.4.3)
+      cosmiconfig: 9.0.0(typescript@5.4.4)
       jiti: 1.21.0
       postcss: 8.4.38
       semver: 7.5.4
@@ -5092,7 +5092,7 @@ packages:
       punycode: 2.3.0
     dev: true
 
-  /ts-loader@9.4.4(typescript@5.4.3)(webpack@5.91.0):
+  /ts-loader@9.4.4(typescript@5.4.4)(webpack@5.91.0):
     resolution: {integrity: sha512-MLukxDHBl8OJ5Dk3y69IsKVFRA/6MwzEqBgh+OXMPB/OD01KQuWPFd1WAQP8a5PeSCAxfnkhiuWqfmFJzJQt9w==}
     engines: {node: '>=12.0.0'}
     peerDependencies:
@@ -5103,7 +5103,7 @@ packages:
       enhanced-resolve: 5.15.0
       micromatch: 4.0.5
       semver: 7.5.4
-      typescript: 5.4.3
+      typescript: 5.4.4
       webpack: 5.91.0(webpack-cli@5.1.4)
     dev: true
 
@@ -5168,8 +5168,8 @@ packages:
       is-typed-array: 1.1.12
     dev: true
 
-  /typescript@5.4.3:
-    resolution: {integrity: sha512-KrPd3PKaCLr78MalgiwJnA25Nm8HAmdwN3mYUYZgG/wizIo9EainNVQI9/yDavtVFRN2h3k8uf3GLHuhDMgEHg==}
+  /typescript@5.4.4:
+    resolution: {integrity: sha512-dGE2Vv8cpVvw28v8HCPqyb08EzbBURxDpuhJvTrusShUfGnhHBafDsLdS1EhhxyL6BJQE+2cT3dDPAv+MQ6oLw==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
