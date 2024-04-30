@@ -3,6 +3,7 @@ import {
     ApplicationMessageHeader,
     Connect,
     Disconnect,
+    Filter,
     IApplicationMessage,
     MmtpMessage,
     MsgType,
@@ -124,17 +125,17 @@ connectBtn.addEventListener("click", async () => {
             console.log("Message received:", msgEvent.data);
             const data = msgEvent.data as Blob;
             const bytes = await data.arrayBuffer();
-            const response = MmtpMessage.decode(new Uint8Array(bytes));
-            console.log(response);
+            const mmtpMessage = MmtpMessage.decode(new Uint8Array(bytes));
+            console.log(mmtpMessage);
 
-            if (response.responseMessage?.responseToUuid !== lastSentMessage.uuid) {
+            if (mmtpMessage.msgType === MsgType.RESPONSE_MESSAGE && mmtpMessage.responseMessage?.responseToUuid !== lastSentMessage.uuid) {
                 console.error("The UUID of the last sent message does not match the UUID being responded to");
             }
             if (!initialized) {
                 // do something
                 connectContainer.hidden = true;
                 msgContainer.hidden = false;
-                reconnectToken = response.responseMessage.reconnectToken;
+                reconnectToken = mmtpMessage.responseMessage.reconnectToken;
 
                 if (authenticated) {
                     sendContainer.hidden = false;
@@ -184,12 +185,33 @@ connectBtn.addEventListener("click", async () => {
                 disconnectBtn.hidden = false;
                 receiveContainer.hidden = false;
             } else {
-                if (response.msgType == MsgType.RESPONSE_MESSAGE) {
-                    const msgs = response.responseMessage.applicationMessages;
+                if (mmtpMessage.msgType === MsgType.RESPONSE_MESSAGE) {
+                    const msgs = mmtpMessage.responseMessage.applicationMessages;
                     for (const msg of msgs) {
                         const validSignature = await verifySignatureOnMessage(msg);
                         showReceivedMessage(msg, validSignature);
                     }
+                } else if (mmtpMessage.msgType === MsgType.PROTOCOL_MESSAGE && mmtpMessage.protocolMessage?.protocolMsgType === ProtocolMessageType.NOTIFY_MESSAGE) {
+                    const notifyMsg = mmtpMessage.protocolMessage.notifyMessage;
+                    const uuids = notifyMsg.messageMetadata.map(messageMetadata => messageMetadata.uuid);
+
+                    const receive = MmtpMessage.create({
+                        msgType: MsgType.PROTOCOL_MESSAGE,
+                        uuid: uuidv4(),
+                        protocolMessage: ProtocolMessage.create({
+                            protocolMsgType: ProtocolMessageType.RECEIVE_MESSAGE,
+                            receiveMessage: Receive.create({
+                                filter: Filter.create({
+                                    messageUuids: uuids
+                                })
+                            })
+                        })
+                    });
+
+                    msgBlob = MmtpMessage.encode(receive).finish();
+
+                    lastSentMessage = receive;
+                    ws.send(msgBlob);
                 }
             }
         };
