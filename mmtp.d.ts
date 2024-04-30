@@ -490,6 +490,9 @@ export interface IProtocolMessage {
 
     /** ProtocolMessage connectMessage */
     connectMessage?: (IConnect|null);
+
+    /** ProtocolMessage notifyMessage */
+    notifyMessage?: (INotify|null);
 }
 
 /** Represents a ProtocolMessage. */
@@ -525,8 +528,11 @@ export class ProtocolMessage implements IProtocolMessage {
     /** ProtocolMessage connectMessage. */
     public connectMessage?: (IConnect|null);
 
+    /** ProtocolMessage notifyMessage. */
+    public notifyMessage?: (INotify|null);
+
     /** ProtocolMessage body. */
-    public body?: ("subscribeMessage"|"unsubscribeMessage"|"sendMessage"|"receiveMessage"|"fetchMessage"|"disconnectMessage"|"connectMessage");
+    public body?: ("subscribeMessage"|"unsubscribeMessage"|"sendMessage"|"receiveMessage"|"fetchMessage"|"disconnectMessage"|"connectMessage"|"notifyMessage");
 
     /**
      * Creates a new ProtocolMessage instance using the specified properties.
@@ -604,6 +610,19 @@ export class ProtocolMessage implements IProtocolMessage {
      * @returns The default type url
      */
     public static getTypeUrl(typeUrlPrefix?: string): string;
+}
+
+/** ProtocolMessageType enum. */
+export enum ProtocolMessageType {
+    UNSPECIFIED = 0,
+    SUBSCRIBE_MESSAGE = 1,
+    UNSUBSCRIBE_MESSAGE = 2,
+    SEND_MESSAGE = 3,
+    RECEIVE_MESSAGE = 4,
+    FETCH_MESSAGE = 5,
+    DISCONNECT_MESSAGE = 6,
+    CONNECT_MESSAGE = 7,
+    NOTIFY_MESSAGE = 8
 }
 
 /** Properties of a Subscribe. */
@@ -1403,16 +1422,101 @@ export class Connect implements IConnect {
     public static getTypeUrl(typeUrlPrefix?: string): string;
 }
 
-/** ProtocolMessageType enum. */
-export enum ProtocolMessageType {
-    UNSPECIFIED = 0,
-    SUBSCRIBE_MESSAGE = 1,
-    UNSUBSCRIBE_MESSAGE = 2,
-    SEND_MESSAGE = 3,
-    RECEIVE_MESSAGE = 4,
-    FETCH_MESSAGE = 5,
-    DISCONNECT_MESSAGE = 6,
-    CONNECT_MESSAGE = 7
+/** Properties of a Notify. */
+export interface INotify {
+
+    /** Notify messageMetadata */
+    messageMetadata?: (IMessageMetadata[]|null);
+}
+
+/** Represents a Notify. */
+export class Notify implements INotify {
+
+    /**
+     * Constructs a new Notify.
+     * @param [properties] Properties to set
+     */
+    constructor(properties?: INotify);
+
+    /** Notify messageMetadata. */
+    public messageMetadata: IMessageMetadata[];
+
+    /**
+     * Creates a new Notify instance using the specified properties.
+     * @param [properties] Properties to set
+     * @returns Notify instance
+     */
+    public static create(properties?: INotify): Notify;
+
+    /**
+     * Encodes the specified Notify message. Does not implicitly {@link Notify.verify|verify} messages.
+     * @param message Notify message or plain object to encode
+     * @param [writer] Writer to encode to
+     * @returns Writer
+     */
+    public static encode(message: INotify, writer?: $protobuf.Writer): $protobuf.Writer;
+
+    /**
+     * Encodes the specified Notify message, length delimited. Does not implicitly {@link Notify.verify|verify} messages.
+     * @param message Notify message or plain object to encode
+     * @param [writer] Writer to encode to
+     * @returns Writer
+     */
+    public static encodeDelimited(message: INotify, writer?: $protobuf.Writer): $protobuf.Writer;
+
+    /**
+     * Decodes a Notify message from the specified reader or buffer.
+     * @param reader Reader or buffer to decode from
+     * @param [length] Message length if known beforehand
+     * @returns Notify
+     * @throws {Error} If the payload is not a reader or valid buffer
+     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+     */
+    public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): Notify;
+
+    /**
+     * Decodes a Notify message from the specified reader or buffer, length delimited.
+     * @param reader Reader or buffer to decode from
+     * @returns Notify
+     * @throws {Error} If the payload is not a reader or valid buffer
+     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+     */
+    public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): Notify;
+
+    /**
+     * Verifies a Notify message.
+     * @param message Plain object to verify
+     * @returns `null` if valid, otherwise the reason why it is not
+     */
+    public static verify(message: { [k: string]: any }): (string|null);
+
+    /**
+     * Creates a Notify message from a plain object. Also converts values to their respective internal types.
+     * @param object Plain object
+     * @returns Notify
+     */
+    public static fromObject(object: { [k: string]: any }): Notify;
+
+    /**
+     * Creates a plain object from a Notify message. Also converts values to other types if specified.
+     * @param message Notify
+     * @param [options] Conversion options
+     * @returns Plain object
+     */
+    public static toObject(message: Notify, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+    /**
+     * Converts this Notify to JSON.
+     * @returns JSON object
+     */
+    public toJSON(): { [k: string]: any };
+
+    /**
+     * Gets the default type url for Notify
+     * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+     * @returns The default type url
+     */
+    public static getTypeUrl(typeUrlPrefix?: string): string;
 }
 
 /** Properties of a ResponseMessage. */

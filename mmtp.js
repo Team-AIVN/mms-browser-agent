@@ -1233,6 +1233,7 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
      * @property {IFetch|null} [fetchMessage] ProtocolMessage fetchMessage
      * @property {IDisconnect|null} [disconnectMessage] ProtocolMessage disconnectMessage
      * @property {IConnect|null} [connectMessage] ProtocolMessage connectMessage
+     * @property {INotify|null} [notifyMessage] ProtocolMessage notifyMessage
      */
 
     /**
@@ -1314,17 +1315,25 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
      */
     ProtocolMessage.prototype.connectMessage = null;
 
+    /**
+     * ProtocolMessage notifyMessage.
+     * @member {INotify|null|undefined} notifyMessage
+     * @memberof ProtocolMessage
+     * @instance
+     */
+    ProtocolMessage.prototype.notifyMessage = null;
+
     // OneOf field names bound to virtual getters and setters
     let $oneOfFields;
 
     /**
      * ProtocolMessage body.
-     * @member {"subscribeMessage"|"unsubscribeMessage"|"sendMessage"|"receiveMessage"|"fetchMessage"|"disconnectMessage"|"connectMessage"|undefined} body
+     * @member {"subscribeMessage"|"unsubscribeMessage"|"sendMessage"|"receiveMessage"|"fetchMessage"|"disconnectMessage"|"connectMessage"|"notifyMessage"|undefined} body
      * @memberof ProtocolMessage
      * @instance
      */
     Object.defineProperty(ProtocolMessage.prototype, "body", {
-        get: $util.oneOfGetter($oneOfFields = ["subscribeMessage", "unsubscribeMessage", "sendMessage", "receiveMessage", "fetchMessage", "disconnectMessage", "connectMessage"]),
+        get: $util.oneOfGetter($oneOfFields = ["subscribeMessage", "unsubscribeMessage", "sendMessage", "receiveMessage", "fetchMessage", "disconnectMessage", "connectMessage", "notifyMessage"]),
         set: $util.oneOfSetter($oneOfFields)
     });
 
@@ -1368,6 +1377,8 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
             $root.Disconnect.encode(message.disconnectMessage, writer.uint32(/* id 7, wireType 2 =*/58).fork()).ldelim();
         if (message.connectMessage != null && Object.hasOwnProperty.call(message, "connectMessage"))
             $root.Connect.encode(message.connectMessage, writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
+        if (message.notifyMessage != null && Object.hasOwnProperty.call(message, "notifyMessage"))
+            $root.Notify.encode(message.notifyMessage, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
         return writer;
     };
 
@@ -1434,6 +1445,10 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
                     message.connectMessage = $root.Connect.decode(reader, reader.uint32());
                     break;
                 }
+            case 9: {
+                    message.notifyMessage = $root.Notify.decode(reader, reader.uint32());
+                    break;
+                }
             default:
                 reader.skipType(tag & 7);
                 break;
@@ -1482,6 +1497,7 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
             case 5:
             case 6:
             case 7:
+            case 8:
                 break;
             }
         if (message.subscribeMessage != null && message.hasOwnProperty("subscribeMessage")) {
@@ -1552,6 +1568,16 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
                     return "connectMessage." + error;
             }
         }
+        if (message.notifyMessage != null && message.hasOwnProperty("notifyMessage")) {
+            if (properties.body === 1)
+                return "body: multiple values";
+            properties.body = 1;
+            {
+                let error = $root.Notify.verify(message.notifyMessage);
+                if (error)
+                    return "notifyMessage." + error;
+            }
+        }
         return null;
     };
 
@@ -1606,6 +1632,10 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
         case 7:
             message.protocolMsgType = 7;
             break;
+        case "NOTIFY_MESSAGE":
+        case 8:
+            message.protocolMsgType = 8;
+            break;
         }
         if (object.subscribeMessage != null) {
             if (typeof object.subscribeMessage !== "object")
@@ -1641,6 +1671,11 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
             if (typeof object.connectMessage !== "object")
                 throw TypeError(".ProtocolMessage.connectMessage: object expected");
             message.connectMessage = $root.Connect.fromObject(object.connectMessage);
+        }
+        if (object.notifyMessage != null) {
+            if (typeof object.notifyMessage !== "object")
+                throw TypeError(".ProtocolMessage.notifyMessage: object expected");
+            message.notifyMessage = $root.Notify.fromObject(object.notifyMessage);
         }
         return message;
     };
@@ -1697,6 +1732,11 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
             if (options.oneofs)
                 object.body = "connectMessage";
         }
+        if (message.notifyMessage != null && message.hasOwnProperty("notifyMessage")) {
+            object.notifyMessage = $root.Notify.toObject(message.notifyMessage, options);
+            if (options.oneofs)
+                object.body = "notifyMessage";
+        }
         return object;
     };
 
@@ -1727,6 +1767,34 @@ export const ProtocolMessage = $root.ProtocolMessage = (() => {
     };
 
     return ProtocolMessage;
+})();
+
+/**
+ * ProtocolMessageType enum.
+ * @name ProtocolMessageType
+ * @enum {number}
+ * @property {number} UNSPECIFIED=0 UNSPECIFIED value
+ * @property {number} SUBSCRIBE_MESSAGE=1 SUBSCRIBE_MESSAGE value
+ * @property {number} UNSUBSCRIBE_MESSAGE=2 UNSUBSCRIBE_MESSAGE value
+ * @property {number} SEND_MESSAGE=3 SEND_MESSAGE value
+ * @property {number} RECEIVE_MESSAGE=4 RECEIVE_MESSAGE value
+ * @property {number} FETCH_MESSAGE=5 FETCH_MESSAGE value
+ * @property {number} DISCONNECT_MESSAGE=6 DISCONNECT_MESSAGE value
+ * @property {number} CONNECT_MESSAGE=7 CONNECT_MESSAGE value
+ * @property {number} NOTIFY_MESSAGE=8 NOTIFY_MESSAGE value
+ */
+export const ProtocolMessageType = $root.ProtocolMessageType = (() => {
+    const valuesById = {}, values = Object.create(valuesById);
+    values[valuesById[0] = "UNSPECIFIED"] = 0;
+    values[valuesById[1] = "SUBSCRIBE_MESSAGE"] = 1;
+    values[valuesById[2] = "UNSUBSCRIBE_MESSAGE"] = 2;
+    values[valuesById[3] = "SEND_MESSAGE"] = 3;
+    values[valuesById[4] = "RECEIVE_MESSAGE"] = 4;
+    values[valuesById[5] = "FETCH_MESSAGE"] = 5;
+    values[valuesById[6] = "DISCONNECT_MESSAGE"] = 6;
+    values[valuesById[7] = "CONNECT_MESSAGE"] = 7;
+    values[valuesById[8] = "NOTIFY_MESSAGE"] = 8;
+    return values;
 })();
 
 export const Subscribe = $root.Subscribe = (() => {
@@ -3492,30 +3560,228 @@ export const Connect = $root.Connect = (() => {
     return Connect;
 })();
 
-/**
- * ProtocolMessageType enum.
- * @name ProtocolMessageType
- * @enum {number}
- * @property {number} UNSPECIFIED=0 UNSPECIFIED value
- * @property {number} SUBSCRIBE_MESSAGE=1 SUBSCRIBE_MESSAGE value
- * @property {number} UNSUBSCRIBE_MESSAGE=2 UNSUBSCRIBE_MESSAGE value
- * @property {number} SEND_MESSAGE=3 SEND_MESSAGE value
- * @property {number} RECEIVE_MESSAGE=4 RECEIVE_MESSAGE value
- * @property {number} FETCH_MESSAGE=5 FETCH_MESSAGE value
- * @property {number} DISCONNECT_MESSAGE=6 DISCONNECT_MESSAGE value
- * @property {number} CONNECT_MESSAGE=7 CONNECT_MESSAGE value
- */
-export const ProtocolMessageType = $root.ProtocolMessageType = (() => {
-    const valuesById = {}, values = Object.create(valuesById);
-    values[valuesById[0] = "UNSPECIFIED"] = 0;
-    values[valuesById[1] = "SUBSCRIBE_MESSAGE"] = 1;
-    values[valuesById[2] = "UNSUBSCRIBE_MESSAGE"] = 2;
-    values[valuesById[3] = "SEND_MESSAGE"] = 3;
-    values[valuesById[4] = "RECEIVE_MESSAGE"] = 4;
-    values[valuesById[5] = "FETCH_MESSAGE"] = 5;
-    values[valuesById[6] = "DISCONNECT_MESSAGE"] = 6;
-    values[valuesById[7] = "CONNECT_MESSAGE"] = 7;
-    return values;
+export const Notify = $root.Notify = (() => {
+
+    /**
+     * Properties of a Notify.
+     * @name INotify
+     * @interface INotify
+     * @property {Array.<IMessageMetadata>|null} [messageMetadata] Notify messageMetadata
+     */
+
+    /**
+     * Constructs a new Notify.
+     * @name Notify
+     * @classdesc Represents a Notify.
+     * @implements INotify
+     * @constructor
+     * @param {INotify=} [properties] Properties to set
+     */
+    function Notify(properties) {
+        this.messageMetadata = [];
+        if (properties)
+            for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                if (properties[keys[i]] != null)
+                    this[keys[i]] = properties[keys[i]];
+    }
+
+    /**
+     * Notify messageMetadata.
+     * @member {Array.<IMessageMetadata>} messageMetadata
+     * @memberof Notify
+     * @instance
+     */
+    Notify.prototype.messageMetadata = $util.emptyArray;
+
+    /**
+     * Creates a new Notify instance using the specified properties.
+     * @function create
+     * @memberof Notify
+     * @static
+     * @param {INotify=} [properties] Properties to set
+     * @returns {Notify} Notify instance
+     */
+    Notify.create = function create(properties) {
+        return new Notify(properties);
+    };
+
+    /**
+     * Encodes the specified Notify message. Does not implicitly {@link Notify.verify|verify} messages.
+     * @function encode
+     * @memberof Notify
+     * @static
+     * @param {INotify} message Notify message or plain object to encode
+     * @param {$protobuf.Writer} [writer] Writer to encode to
+     * @returns {$protobuf.Writer} Writer
+     */
+    Notify.encode = function encode(message, writer) {
+        if (!writer)
+            writer = $Writer.create();
+        if (message.messageMetadata != null && message.messageMetadata.length)
+            for (let i = 0; i < message.messageMetadata.length; ++i)
+                $root.MessageMetadata.encode(message.messageMetadata[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+        return writer;
+    };
+
+    /**
+     * Encodes the specified Notify message, length delimited. Does not implicitly {@link Notify.verify|verify} messages.
+     * @function encodeDelimited
+     * @memberof Notify
+     * @static
+     * @param {INotify} message Notify message or plain object to encode
+     * @param {$protobuf.Writer} [writer] Writer to encode to
+     * @returns {$protobuf.Writer} Writer
+     */
+    Notify.encodeDelimited = function encodeDelimited(message, writer) {
+        return this.encode(message, writer).ldelim();
+    };
+
+    /**
+     * Decodes a Notify message from the specified reader or buffer.
+     * @function decode
+     * @memberof Notify
+     * @static
+     * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+     * @param {number} [length] Message length if known beforehand
+     * @returns {Notify} Notify
+     * @throws {Error} If the payload is not a reader or valid buffer
+     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+     */
+    Notify.decode = function decode(reader, length) {
+        if (!(reader instanceof $Reader))
+            reader = $Reader.create(reader);
+        let end = length === undefined ? reader.len : reader.pos + length, message = new $root.Notify();
+        while (reader.pos < end) {
+            let tag = reader.uint32();
+            switch (tag >>> 3) {
+            case 1: {
+                    if (!(message.messageMetadata && message.messageMetadata.length))
+                        message.messageMetadata = [];
+                    message.messageMetadata.push($root.MessageMetadata.decode(reader, reader.uint32()));
+                    break;
+                }
+            default:
+                reader.skipType(tag & 7);
+                break;
+            }
+        }
+        return message;
+    };
+
+    /**
+     * Decodes a Notify message from the specified reader or buffer, length delimited.
+     * @function decodeDelimited
+     * @memberof Notify
+     * @static
+     * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+     * @returns {Notify} Notify
+     * @throws {Error} If the payload is not a reader or valid buffer
+     * @throws {$protobuf.util.ProtocolError} If required fields are missing
+     */
+    Notify.decodeDelimited = function decodeDelimited(reader) {
+        if (!(reader instanceof $Reader))
+            reader = new $Reader(reader);
+        return this.decode(reader, reader.uint32());
+    };
+
+    /**
+     * Verifies a Notify message.
+     * @function verify
+     * @memberof Notify
+     * @static
+     * @param {Object.<string,*>} message Plain object to verify
+     * @returns {string|null} `null` if valid, otherwise the reason why it is not
+     */
+    Notify.verify = function verify(message) {
+        if (typeof message !== "object" || message === null)
+            return "object expected";
+        if (message.messageMetadata != null && message.hasOwnProperty("messageMetadata")) {
+            if (!Array.isArray(message.messageMetadata))
+                return "messageMetadata: array expected";
+            for (let i = 0; i < message.messageMetadata.length; ++i) {
+                let error = $root.MessageMetadata.verify(message.messageMetadata[i]);
+                if (error)
+                    return "messageMetadata." + error;
+            }
+        }
+        return null;
+    };
+
+    /**
+     * Creates a Notify message from a plain object. Also converts values to their respective internal types.
+     * @function fromObject
+     * @memberof Notify
+     * @static
+     * @param {Object.<string,*>} object Plain object
+     * @returns {Notify} Notify
+     */
+    Notify.fromObject = function fromObject(object) {
+        if (object instanceof $root.Notify)
+            return object;
+        let message = new $root.Notify();
+        if (object.messageMetadata) {
+            if (!Array.isArray(object.messageMetadata))
+                throw TypeError(".Notify.messageMetadata: array expected");
+            message.messageMetadata = [];
+            for (let i = 0; i < object.messageMetadata.length; ++i) {
+                if (typeof object.messageMetadata[i] !== "object")
+                    throw TypeError(".Notify.messageMetadata: object expected");
+                message.messageMetadata[i] = $root.MessageMetadata.fromObject(object.messageMetadata[i]);
+            }
+        }
+        return message;
+    };
+
+    /**
+     * Creates a plain object from a Notify message. Also converts values to other types if specified.
+     * @function toObject
+     * @memberof Notify
+     * @static
+     * @param {Notify} message Notify
+     * @param {$protobuf.IConversionOptions} [options] Conversion options
+     * @returns {Object.<string,*>} Plain object
+     */
+    Notify.toObject = function toObject(message, options) {
+        if (!options)
+            options = {};
+        let object = {};
+        if (options.arrays || options.defaults)
+            object.messageMetadata = [];
+        if (message.messageMetadata && message.messageMetadata.length) {
+            object.messageMetadata = [];
+            for (let j = 0; j < message.messageMetadata.length; ++j)
+                object.messageMetadata[j] = $root.MessageMetadata.toObject(message.messageMetadata[j], options);
+        }
+        return object;
+    };
+
+    /**
+     * Converts this Notify to JSON.
+     * @function toJSON
+     * @memberof Notify
+     * @instance
+     * @returns {Object.<string,*>} JSON object
+     */
+    Notify.prototype.toJSON = function toJSON() {
+        return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+    };
+
+    /**
+     * Gets the default type url for Notify
+     * @function getTypeUrl
+     * @memberof Notify
+     * @static
+     * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+     * @returns {string} The default type url
+     */
+    Notify.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+        if (typeUrlPrefix === undefined) {
+            typeUrlPrefix = "type.googleapis.com";
+        }
+        return typeUrlPrefix + "/Notify";
+    };
+
+    return Notify;
 })();
 
 export const ResponseMessage = $root.ResponseMessage = (() => {

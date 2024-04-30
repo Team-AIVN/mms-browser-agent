@@ -46,7 +46,20 @@ message ProtocolMessage {
     Fetch fetchMessage = 6;
     Disconnect disconnectMessage = 7;
     Connect connectMessage = 8;
+    Notify notifyMessage = 9;
   }
+}
+
+enum ProtocolMessageType {
+  UNSPECIFIED = 0;
+  SUBSCRIBE_MESSAGE = 1;
+  UNSUBSCRIBE_MESSAGE = 2;
+  SEND_MESSAGE = 3;
+  RECEIVE_MESSAGE = 4;
+  FETCH_MESSAGE = 5;
+  DISCONNECT_MESSAGE = 6;
+  CONNECT_MESSAGE = 7;
+  NOTIFY_MESSAGE = 8;
 }
 
 message Subscribe {
@@ -88,15 +101,8 @@ message Connect {
   optional string reconnectToken = 2;
 }
 
-enum ProtocolMessageType {
-  UNSPECIFIED = 0;
-  SUBSCRIBE_MESSAGE = 1;
-  UNSUBSCRIBE_MESSAGE = 2;
-  SEND_MESSAGE = 3;
-  RECEIVE_MESSAGE = 4;
-  FETCH_MESSAGE = 5;
-  DISCONNECT_MESSAGE = 6;
-  CONNECT_MESSAGE = 7;
+message Notify {
+  repeated MessageMetadata messageMetadata = 1;
 }
 
 message ResponseMessage {
