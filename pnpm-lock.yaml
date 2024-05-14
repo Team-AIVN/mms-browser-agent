@@ -39,7 +39,7 @@ devDependencies:
     version: 5.2.10
   '@types/jquery':
     specifier: ^3.5.29
-    version: 3.5.29
+    version: 3.5.30
   '@types/uuid':
     specifier: ^9.0.2
     version: 9.0.8
@@ -1589,8 +1589,8 @@ packages:
       '@types/node': 20.4.7
     dev: true
 
-  /@types/jquery@3.5.29:
-    resolution: {integrity: sha512-oXQQC9X9MOPRrMhPHHOsXqeQDnWeCDT3PelUIg/Oy8FAbzSZtFHRjc7IpbfFVmpLtJ+UOoywpRsuO5Jxjybyeg==}
+  /@types/jquery@3.5.30:
+    resolution: {integrity: sha512-nbWKkkyb919DOUxjmRVk8vwtDb0/k8FKncmUKFi+NY+QXqWltooxTrswvz4LspQwxvLdvzBN1TImr6cw3aQx2A==}
     dependencies:
       '@types/sizzle': 2.3.8
     dev: true
