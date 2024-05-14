@@ -28,7 +28,7 @@ dependencies:
     version: 3.0.16
   protobufjs:
     specifier: ^7.2.6
-    version: 7.2.6
+    version: 7.3.0
   uuid:
     specifier: ^9.0.0
     version: 9.0.1
@@ -60,7 +60,7 @@ devDependencies:
     version: 3.2.5
   protobufjs-cli:
     specifier: ^1.1.1
-    version: 1.1.2(protobufjs@7.2.6)
+    version: 1.1.2(protobufjs@7.3.0)
   sass:
     specifier: ^1.71.0
     version: 1.75.0
@@ -4291,7 +4291,7 @@ packages:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
     dev: true
 
-  /protobufjs-cli@1.1.2(protobufjs@7.2.6):
+  /protobufjs-cli@1.1.2(protobufjs@7.3.0):
     resolution: {integrity: sha512-8ivXWxT39gZN4mm4ArQyJrRgnIwZqffBWoLDsE21TmMcKI3XwJMV4lEF2WU02C4JAtgYYc2SfJIltelD8to35g==}
     engines: {node: '>=12.0.0'}
     hasBin: true
@@ -4305,14 +4305,14 @@ packages:
       glob: 8.1.0
       jsdoc: 4.0.2
       minimist: 1.2.8
-      protobufjs: 7.2.6
+      protobufjs: 7.3.0
       semver: 7.5.4
       tmp: 0.2.1
       uglify-js: 3.17.4
     dev: true
 
-  /protobufjs@7.2.6:
-    resolution: {integrity: sha512-dgJaEDDL6x8ASUZ1YqWciTRrdOuYNzoOf27oHNfdyvKqHr5i0FV7FSLU+aIeFjyFgVxrpTOtQUi0BLLBymZaBw==}
+  /protobufjs@7.3.0:
+    resolution: {integrity: sha512-YWD03n3shzV9ImZRX3ccbjqLxj7NokGN0V/ESiBV5xWqrommYHYiihuIyavq03pWSGqlyvYUFmfoMKd+1rPA/g==}
     engines: {node: '>=12.0.0'}
     requiresBuild: true
     dependencies:
