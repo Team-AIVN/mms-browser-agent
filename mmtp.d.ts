@@ -10,7 +10,7 @@ export interface IApplicationMessage {
     body?: (Uint8Array|null);
 
     /** ApplicationMessage signature */
-    signature?: (string|null);
+    signature?: (Uint8Array|null);
 }
 
 /** Represents an ApplicationMessage. */
@@ -29,7 +29,7 @@ export class ApplicationMessage implements IApplicationMessage {
     public body: Uint8Array;
 
     /** ApplicationMessage signature. */
-    public signature: string;
+    public signature: Uint8Array;
 
     /**
      * Creates a new ApplicationMessage instance using the specified properties.

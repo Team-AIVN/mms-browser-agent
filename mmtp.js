@@ -15,7 +15,7 @@ export const ApplicationMessage = $root.ApplicationMessage = (() => {
      * @interface IApplicationMessage
      * @property {IApplicationMessageHeader|null} [header] ApplicationMessage header
      * @property {Uint8Array|null} [body] ApplicationMessage body
-     * @property {string|null} [signature] ApplicationMessage signature
+     * @property {Uint8Array|null} [signature] ApplicationMessage signature
      */
 
     /**
@@ -51,11 +51,11 @@ export const ApplicationMessage = $root.ApplicationMessage = (() => {
 
     /**
      * ApplicationMessage signature.
-     * @member {string} signature
+     * @member {Uint8Array} signature
      * @memberof ApplicationMessage
      * @instance
      */
-    ApplicationMessage.prototype.signature = "";
+    ApplicationMessage.prototype.signature = $util.newBuffer([]);
 
     /**
      * Creates a new ApplicationMessage instance using the specified properties.
@@ -86,7 +86,7 @@ export const ApplicationMessage = $root.ApplicationMessage = (() => {
         if (message.body != null && Object.hasOwnProperty.call(message, "body"))
             writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.body);
         if (message.signature != null && Object.hasOwnProperty.call(message, "signature"))
-            writer.uint32(/* id 3, wireType 2 =*/26).string(message.signature);
+            writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.signature);
         return writer;
     };
 
@@ -130,7 +130,7 @@ export const ApplicationMessage = $root.ApplicationMessage = (() => {
                     break;
                 }
             case 3: {
-                    message.signature = reader.string();
+                    message.signature = reader.bytes();
                     break;
                 }
             default:
@@ -177,8 +177,8 @@ export const ApplicationMessage = $root.ApplicationMessage = (() => {
             if (!(message.body && typeof message.body.length === "number" || $util.isString(message.body)))
                 return "body: buffer expected";
         if (message.signature != null && message.hasOwnProperty("signature"))
-            if (!$util.isString(message.signature))
-                return "signature: string expected";
+            if (!(message.signature && typeof message.signature.length === "number" || $util.isString(message.signature)))
+                return "signature: buffer expected";
         return null;
     };
 
@@ -205,7 +205,10 @@ export const ApplicationMessage = $root.ApplicationMessage = (() => {
             else if (object.body.length >= 0)
                 message.body = object.body;
         if (object.signature != null)
-            message.signature = String(object.signature);
+            if (typeof object.signature === "string")
+                $util.base64.decode(object.signature, message.signature = $util.newBuffer($util.base64.length(object.signature)), 0);
+            else if (object.signature.length >= 0)
+                message.signature = object.signature;
         return message;
     };
 
@@ -231,14 +234,20 @@ export const ApplicationMessage = $root.ApplicationMessage = (() => {
                 if (options.bytes !== Array)
                     object.body = $util.newBuffer(object.body);
             }
-            object.signature = "";
+            if (options.bytes === String)
+                object.signature = "";
+            else {
+                object.signature = [];
+                if (options.bytes !== Array)
+                    object.signature = $util.newBuffer(object.signature);
+            }
         }
         if (message.header != null && message.hasOwnProperty("header"))
             object.header = $root.ApplicationMessageHeader.toObject(message.header, options);
         if (message.body != null && message.hasOwnProperty("body"))
             object.body = options.bytes === String ? $util.base64.encode(message.body, 0, message.body.length) : options.bytes === Array ? Array.prototype.slice.call(message.body) : message.body;
         if (message.signature != null && message.hasOwnProperty("signature"))
-            object.signature = message.signature;
+            object.signature = options.bytes === String ? $util.base64.encode(message.signature, 0, message.signature.length) : options.bytes === Array ? Array.prototype.slice.call(message.signature) : message.signature;
         return object;
     };
 
