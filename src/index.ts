@@ -487,8 +487,7 @@ interface SignatureVerificationResponse {
 async function verifySignatureOnMessage(msg: IApplicationMessage): Promise<SignatureVerificationResponse> {
     // Currently we only check subject-casts
     if (msg.header.subject) {
-        const signature = Uint8Array.from(atob(msg.signature), c => c.charCodeAt(0));
-        const signatureSequence = fromBER(signature).result as Sequence;
+        const signatureSequence = fromBER(msg.signature).result as Sequence;
         let r = (signatureSequence.valueBlock.value.at(0) as Integer).valueBlock.valueHexView;
         if (r.length === 49) {
             r = r.subarray(1, r.length);
@@ -678,9 +677,7 @@ sendBtn.addEventListener("click", async () => {
     let sequence = new Sequence();
     sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(r)));
     sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(s)));
-    const derSignature = new Uint8Array(sequence.toBER());
-
-    sendMsg.protocolMessage.sendMessage.applicationMessage.signature = btoa(String.fromCodePoint(...derSignature));
+    sendMsg.protocolMessage.sendMessage.applicationMessage.signature = new Uint8Array(sequence.toBER());
 
     const toBeSent = MmtpMessage.encode(sendMsg).finish();
     console.log("MMTP message: ", sendMsg);
