@@ -206,24 +206,63 @@ connectBtn.addEventListener("click", async () => {
                             //Handle cases of SMMP messages
                             console.log("flags", flags)
                             if (hasFlags(flags, [FlagsEnum.Handshake, FlagsEnum.Confidentiality])) {
-                                console.log("Handshake initiation")
+                                console.log("initiation")
+
+                                //Parse raw key from remote clients DER certificate
+
+                                //Perform ECDH
+                                const ecdhPair = await window.crypto.subtle.generateKey(
+                                    {
+                                        name: "ECDH",
+                                        namedCurve: "P-384", //secp384r1
+                                    },
+                                    true,
+                                    ["deriveKey", "deriveBits"] // can be any combination of "deriveKey" and "deriveBits"
+                                );
+
+                                //Call import Peer public key from the parse raw public key
+
+                                //Compute shared secret by calling deriveBits
+
+                                //Call factory function to create a remote client.
 
                                 // 2nd step handshake
                                 if (hasFlags(flags, [FlagsEnum.Handshake, FlagsEnum.Confidentiality, FlagsEnum.ACK])) {
-
+                                    console.log("Remote client accepted initiation of SMMP session")
+                                    const flags : FlagsEnum[] = [FlagsEnum.ACK, FlagsEnum.Confidentiality]
+                                    let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
+                                    const smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
+                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, smmpPayload)
+                                    let signedSendMsg = await signMessage(mmtpMsg, false)
+                                    const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+                                    lastSentMessage = signedSendMsg;
+                                    ws.send(toBeSent);
+                                    //Send last ACK
                                 // 1st step handshake
                                 } else {
-
+                                    console.log("Remote client wants to initiate SMMP session")
+                                    let smmpAckMsg = getSmmpHandshakeAckMessage()
+                                    const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
+                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, smmpPayload)
+                                    let signedSendMsg = await signMessage(mmtpMsg, false)
+                                    const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+                                    lastSentMessage = signedSendMsg;
+                                    ws.send(toBeSent);
+                                    //Send with ACK
                                 }
                             // Case - Reception of an ACK of a received message with delivery guarantee
                             } else if (hasFlags(flags, [FlagsEnum.ACK, FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee])) {
+                                console.log("Msg with delivery guarantee was sucessfully received ")
 
                             // Case - last part of three-way handshake, i.e. 3rd step of three-way handshake
                             } else if (hasFlags(flags, [FlagsEnum.ACK, FlagsEnum.Confidentiality])) {
+                                console.log("Last part of three-way-handshake ACK - session is now setup!")
 
                             // Case regular reception of an encrypted message
                             } else if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
+                                //Simple case - Decrypt message and display
 
+                                //Advanced case - Handle segmentation
                             }
                         } else {
                             showReceivedMessage(msg, validSignature);
@@ -397,6 +436,13 @@ let encodedFile: Uint8Array;
 interface Agent {
     mrn: string,
     edgeRouter: string,
+}
+
+interface RemoteClient {
+    pubKey : string,
+    symKey : string,
+    confidentiality : boolean,
+    deliveryAck : boolean,
 }
 
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
@@ -981,6 +1027,17 @@ async function signMessage(msg : MmtpMessage, subject : boolean) {
     return msg
 }
 
+
+
+//Factory Function to create a new RemoteClient
+const createRemoteClient = (pubKey: string, symKey: string, confidentiality: boolean, deliveryAck: boolean): RemoteClient => {
+    return {
+        pubKey,
+        symKey,
+        confidentiality,
+        deliveryAck
+    };
+};
 
 const loadedState = document.getElementById('file-state-loaded');
 const unloadedState = document.getElementById('file-state-unloaded');
