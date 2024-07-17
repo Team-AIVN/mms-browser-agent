@@ -200,8 +200,9 @@ connectBtn.addEventListener("click", async () => {
 
                         //Check if SMMP and in that case handle it as SMMP
                         let msgIsSmmp = await isSmmp(msg)
+                        console.log("IS SMMP?", msgIsSmmp)
                         if (msgIsSmmp) {
-                            const smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body));
+                            const smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body.subarray(4,msg.body.length)));
                             const flags : number = smmpMessage.header.control[1]
                             //Handle cases of SMMP messages
                             console.log("flags", flags)
@@ -243,7 +244,11 @@ connectBtn.addEventListener("click", async () => {
                                     console.log("Remote client wants to initiate SMMP session")
                                     let smmpAckMsg = getSmmpHandshakeAckMessage()
                                     const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
-                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, smmpPayload)
+                                    const magic = new Uint8Array([83, 77, 77, 80]);
+                                    const finalPayload = new Uint8Array(magic.length + smmpPayload.length)
+                                    finalPayload.set(magic, 0);
+                                    finalPayload.set(smmpPayload, magic.length);
+                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
                                     let signedSendMsg = await signMessage(mmtpMsg, false)
                                     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
                                     lastSentMessage = signedSendMsg;
@@ -328,32 +333,22 @@ connectBtn.addEventListener("click", async () => {
 });
 
 async function isSmmp(msg: IApplicationMessage): Promise<boolean> {
-    console.log("Ismessage");
-    let smmpMessage: SmmpMessage;
-    try {
-        smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body));
-    } catch (error) {
-        console.log("Message could not be parsed as smmp:", error);
+    if (msg.body.length < 4) { // Out of bounds check for SMMP magic word
         return false;
     }
-    console.log("Complete");
+    // Extract the first four bytes to check
+    const toCheck = msg.body.subarray(0, 4);
+    // Uint8Array with the ASCII values for "SMMP"
+    const magic = new Uint8Array([83, 77, 77, 80]);
 
-    // Define the magic bytes
-    const magicBytes = new Uint8Array([0x50, 0x4D, 0x4D, 0x53]); // Ascii PMMS
-    const dataView = new DataView(magicBytes.buffer);
-    const magicInt = dataView.getInt32(0, false); // false for Big Endian
-
-    // Ensure smmpMessage.header and smmpMessage.header.magic are defined
-    if (!smmpMessage.header || smmpMessage.header.magic == null) {
-        return false;
+    for (let i = 0; i < 4; i++) {
+        if (toCheck[i] !== magic[i]) {
+            return false;
+        }
     }
-
-    // Extract the magic value from the message
-    const extractedMagic = smmpMessage.header.magic;
-
-    // Compare the magic values
-    return magicInt === extractedMagic;
+    return true;
 }
+
 
 
 let certBytes: ArrayBuffer;
