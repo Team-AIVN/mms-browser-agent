@@ -94,6 +94,7 @@ let privateKey: CryptoKey;
 let ws: WebSocket;
 let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
+let remoteClients = new Map<string, RemoteClient>();
 
 connectBtn.addEventListener("click", async () => {
     if (!connectionType) {
@@ -210,6 +211,19 @@ connectBtn.addEventListener("click", async () => {
                                 console.log("initiation")
 
                                 //Parse raw key from remote clients DER certificate
+                                const cert = Certificate.fromBER(smmpMessage.data);
+                                console.log("CERT parsed")
+                                const rcPubKey = await cert.getPublicKey(
+                                    {
+                                        algorithm: {
+                                            algorithm: {
+                                                name: "ECDH",
+                                                namedCurve: "P-384",
+                                            },
+                                            usages: ["deriveKey"],
+                                        },
+                                    },
+                                )
 
                                 //Perform ECDH
                                 const ecdhPair = await window.crypto.subtle.generateKey(
@@ -218,14 +232,18 @@ connectBtn.addEventListener("click", async () => {
                                         namedCurve: "P-384", //secp384r1
                                     },
                                     true,
-                                    ["deriveKey", "deriveBits"] // can be any combination of "deriveKey" and "deriveBits"
+                                    ["deriveKey"] // can be any combination of "deriveKey" and "deriveBits"
                                 );
 
-                                //Call import Peer public key from the parse raw public key
+                                const sharedKey = await deriveSecretKey(ecdhPair.privateKey, rcPubKey)
+                                console.log("Shared key agreed")
 
-                                //Compute shared secret by calling deriveBits
+                                //Create a remote client instance we can keep track of
+                                const remoteClient = createRemoteClient(rcPubKey, sharedKey, true, true)
 
-                                //Call factory function to create a remote client.
+                                //Store remote client in a map, identified by MRN
+                                remoteClients.set(msg.header.sender, remoteClient)
+                                console.log("Size is", remoteClients.size)
 
                                 // 2nd step handshake
                                 if (hasFlags(flags, [FlagsEnum.Handshake, FlagsEnum.Confidentiality, FlagsEnum.ACK])) {
@@ -257,7 +275,7 @@ connectBtn.addEventListener("click", async () => {
                                 }
                             // Case - Reception of an ACK of a received message with delivery guarantee
                             } else if (hasFlags(flags, [FlagsEnum.ACK, FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee])) {
-                                console.log("Msg with delivery guarantee was sucessfully received ")
+                                console.log("Msg with delivery guarantee was successfully received ")
 
                             // Case - last part of three-way handshake, i.e. 3rd step of three-way handshake
                             } else if (hasFlags(flags, [FlagsEnum.ACK, FlagsEnum.Confidentiality])) {
@@ -265,7 +283,13 @@ connectBtn.addEventListener("click", async () => {
 
                             // Case regular reception of an encrypted message
                             } else if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
-                                //Simple case - Decrypt message and display
+                                console.log("Received regular smmp message")
+                                //Get the remote client key
+                                const key = remoteClients.get(msg.header.sender)
+
+                                //Decrypt message
+
+                                //Display message
 
                                 //Advanced case - Handle segmentation
                             }
@@ -386,6 +410,11 @@ function extractFromPem(pemInput: string, inputType: string): ArrayBuffer {
     return str2ab(atob(b64));
 }
 
+function GetPkFromDerCert(derCert : Uint8Array) {
+
+
+}
+
 /*
 Convert a string into an ArrayBuffer
 from https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
@@ -434,10 +463,11 @@ interface Agent {
 }
 
 interface RemoteClient {
-    pubKey : string,
-    symKey : string,
+    pubKey : CryptoKey,
+    symKey : CryptoKey,
     confidentiality : boolean,
     deliveryAck : boolean,
+    nonRepudiation: boolean,
 }
 
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
@@ -1025,12 +1055,13 @@ async function signMessage(msg : MmtpMessage, subject : boolean) {
 
 
 //Factory Function to create a new RemoteClient
-const createRemoteClient = (pubKey: string, symKey: string, confidentiality: boolean, deliveryAck: boolean): RemoteClient => {
+const createRemoteClient = (pk: CryptoKey, sk: CryptoKey, conf: boolean, dAck: boolean): RemoteClient => {
     return {
-        pubKey,
-        symKey,
-        confidentiality,
-        deliveryAck
+        pubKey: pk,
+        symKey: sk,
+        confidentiality: conf,
+        deliveryAck: dAck,
+        nonRepudiation: false,
     };
 };
 
@@ -1039,3 +1070,39 @@ const unloadedState = document.getElementById('file-state-unloaded');
 
 loadedState.style.display = 'none';
 unloadedState.style.display = 'block';
+
+
+//Derives a shared AES-GCM 256-bit key for session confidentiality
+function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
+    return window.crypto.subtle.deriveKey(
+        {
+            name: "ECDH",
+            public: publicKey,
+        },
+        privateKey,
+        {
+            name: "AES-CTR",
+            length: 256,
+        },
+        false,
+        ["encrypt", "decrypt"],
+    );
+}
+
+//Inspired from https://github.com/mdn/dom-examples/blob/main/web-crypto/derive-key/ecdh.js
+function encrypt(secretKey : CryptoKey) {
+
+}
+
+async function decrypt(secretKey : CryptoKey, data : Uint8Array, counter : Uint8Array) : Promise<Uint8Array>  {
+    let decrypted = await crypto.subtle.decrypt(
+        {
+            name: "AES-CTR",
+            counter: counter,
+            length: 64,
+        },
+        secretKey,
+        data
+    )
+    return new Uint8Array(decrypted);
+}
