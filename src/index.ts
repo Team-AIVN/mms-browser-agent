@@ -284,7 +284,8 @@ connectBtn.addEventListener("click", async () => {
 
                                 //Display message
                                 console.log("Decrypted msg bytes: ", plaintext)
-                                console.log("Decrypted msg str: ", plaintextStr)
+                                msg.body = plaintext
+                                showReceivedMessage(msg, validSignature);
 
                                 //Advanced case - Handle segmentation
                             }
