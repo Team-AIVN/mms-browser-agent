@@ -1186,7 +1186,7 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
             li.appendChild(deliverySpan);
 
             const nonrepudiationSpan = document.createElement('span');
-            nonrepudiationSpan.textContent = `D: ${rc.nonRepudiation} `;
+            nonrepudiationSpan.textContent = `N: ${rc.nonRepudiation} `;
             li.appendChild(nonrepudiationSpan);
 
             // Append the list item to the list
