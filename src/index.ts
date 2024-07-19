@@ -269,6 +269,8 @@ connectBtn.addEventListener("click", async () => {
 
                             // Case - last part of three-way handshake, i.e. 3rd step of three-way handshake
                             } else if (hasFlags(flags, [FlagsEnum.ACK, FlagsEnum.Confidentiality])) {
+                                //Make it happen here
+                                showSmmpSessions(remoteClients)
                                 console.log("Last part of three-way-handshake ACK - session is now setup!")
 
                             // Case regular reception of an encrypted message
@@ -351,6 +353,8 @@ connectBtn.addEventListener("click", async () => {
         location.reload();
     });
 });
+
+
 
 async function isSmmp(msg: IApplicationMessage): Promise<boolean> {
     if (msg.body.length < 4) { // Out of bounds check for SMMP magic word
@@ -1154,5 +1158,42 @@ async function decrypt(secretKey : CryptoKey, data : Uint8Array) {
         ciphertext
     );
     return new Uint8Array(decrypted);
+}
+
+function showSmmpSessions(sessions : Map<string,RemoteClient>) {
+    const activeSmmpSessionsDiv = document.getElementById('activeSmmpSessions');
+    activeSmmpSessionsDiv.innerHTML = ''; // Clear existing content
+
+    if (sessions.size > 0) {
+        const ul = document.createElement('ul');
+        ul.classList.add('list-group');
+
+        sessions.forEach((rc, mrn) => {
+            const li = document.createElement('li');
+            li.classList.add('list-group-item');
+
+            // Create MRN span
+            const mrnSpan = document.createElement('span');
+            mrnSpan.textContent = `MRN: ${mrn} `;
+            li.appendChild(mrnSpan);
+
+            const confSpan = document.createElement('span');
+            confSpan.textContent = `C: ${rc.confidentiality} `;
+            li.appendChild(confSpan);
+
+            const deliverySpan = document.createElement('span');
+            deliverySpan.textContent = `D: ${rc.deliveryAck} `;
+            li.appendChild(deliverySpan);
+
+            const nonrepudiationSpan = document.createElement('span');
+            nonrepudiationSpan.textContent = `D: ${rc.nonRepudiation} `;
+            li.appendChild(nonrepudiationSpan);
+
+            // Append the list item to the list
+            ul.appendChild(li);
+        });
+        activeSmmpSessionsDiv.appendChild(ul);
+        activeSmmpSessionsDiv.hidden = false;
+    }
 }
 
