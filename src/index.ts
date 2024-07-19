@@ -90,6 +90,7 @@ connTypeSelect.addEventListener("change", () => {
 
 let certificate: Certificate;
 let privateKey: CryptoKey;
+let privateKeyEcdh : CryptoKey;
 
 let ws: WebSocket;
 let reconnectToken: string;
@@ -226,18 +227,7 @@ connectBtn.addEventListener("click", async () => {
                                 )
 
                                 //Perform ECDH
-                                const ecdhPair = await window.crypto.subtle.generateKey(
-                                    {
-                                        name: "ECDH",
-                                        namedCurve: "P-384", //secp384r1
-                                    },
-                                    true,
-                                    ["deriveKey"] // can be any combination of "deriveKey" and "deriveBits"
-                                );
-
-                                const sharedKey = await deriveSecretKey(ecdhPair.privateKey, rcPubKey)
-                                console.log("Shared key agreed")
-
+                                const sharedKey = await deriveSecretKey(privateKeyEcdh, rcPubKey)
                                 //Create a remote client instance we can keep track of
                                 const remoteClient = createRemoteClient(rcPubKey, sharedKey, true, true)
 
@@ -285,11 +275,16 @@ connectBtn.addEventListener("click", async () => {
                             } else if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
                                 console.log("Received regular smmp message")
                                 //Get the remote client key
-                                const key = remoteClients.get(msg.header.sender)
+                                const rc = remoteClients.get(msg.header.sender)
 
                                 //Decrypt message
+                                const plaintext = await decrypt(rc.symKey, smmpMessage.data)
+                                const decoder = new TextDecoder('ascii');
+                                const plaintextStr = decoder.decode(plaintext);
 
                                 //Display message
+                                console.log("Decrypted msg bytes: ", plaintext)
+                                console.log("Decrypted msg str: ", plaintextStr)
 
                                 //Advanced case - Handle segmentation
                             }
@@ -402,6 +397,10 @@ async function loadCertAndPrivateKeyFromFiles() {
         name: "ECDSA",
         namedCurve: "P-384"
     }, false, ["sign"]);
+    privateKeyEcdh = await crypto.subtle.importKey("pkcs8", privKeyBytes, {
+        name: "ECDH",
+        namedCurve: "P-384"
+    }, false, ["deriveKey"]);
 
 }
 
@@ -1072,9 +1071,20 @@ loadedState.style.display = 'none';
 unloadedState.style.display = 'block';
 
 
-//Derives a shared AES-GCM 256-bit key for session confidentiality
-function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
-    return window.crypto.subtle.deriveKey(
+//Derives a shared AES-CTR 256-bit key for session confidentiality
+async function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
+    const privateKeyAlgorithm = privateKey.algorithm;
+    const publicKeyAlgorithm = publicKey.algorithm;
+
+    if (privateKeyAlgorithm.name !== 'ECDH') {
+        throw new Error('Private key must be an ECDH key with P-384 curve');
+    }
+
+    if (publicKeyAlgorithm.name !== 'ECDH') {
+        throw new Error('Public key must be an ECDH key with P-384 curve');
+    }
+
+    const keyD =  await window.crypto.subtle.deriveKey(
         {
             name: "ECDH",
             public: publicKey,
@@ -1084,25 +1094,64 @@ function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
             name: "AES-CTR",
             length: 256,
         },
-        false,
+        true,
         ["encrypt", "decrypt"],
     );
+    //THE BELOW IS FOR DEBUG ONLY
+    // Export the derived key to a raw format (ArrayBuffer)
+    const exportedKey = await window.crypto.subtle.exportKey('raw', keyD);
+
+    // Convert the ArrayBuffer to Uint8Array for easier handling
+    const keyArray = new Uint8Array(exportedKey);
+
+    // Convert the Uint8Array to a hexadecimal string for easy reading
+    const keyHex = Array.from(keyArray).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Print the derived key to the console
+    console.log('Derived Key (Hex):', keyHex);
+    return keyD
 }
 
 //Inspired from https://github.com/mdn/dom-examples/blob/main/web-crypto/derive-key/ecdh.js
-function encrypt(secretKey : CryptoKey) {
+//Note from  NIST SP800-38A standard the max number of blocks MAY NOT EXCEED 2^64
+async function encrypt(secretKey : CryptoKey, data : Uint8Array) {
+    let iv = window.crypto.getRandomValues(new Uint8Array(16));
+    //Rightmost length bits shall be used for counter and the first half for the IV
 
-}
-
-async function decrypt(secretKey : CryptoKey, data : Uint8Array, counter : Uint8Array) : Promise<Uint8Array>  {
-    let decrypted = await crypto.subtle.decrypt(
-        {
-            name: "AES-CTR",
-            counter: counter,
-            length: 64,
+    let ciphertext = await crypto.subtle.encrypt(
+    {
+        name: "AES-CTR",
+        counter: iv,
+        length: 64 //The length that should be incremented
         },
         secretKey,
-        data
+        data,
     )
+    //Regarding counter, The rightmost length bits of this block are used for the counter, and the rest is used for the nonce. For example, if length is set to 64, then the first half of counter is the nonce and the second half is used for the counter.
+    // Convert ciphertext to Uint8Array and prepend the IV
+    let ciphertextArray = new Uint8Array(ciphertext);
+    let result = new Uint8Array(iv.length + ciphertextArray.length);
+    result.set(iv);
+    result.set(ciphertextArray, iv.length);
+
+    return result;
+}
+
+async function decrypt(secretKey : CryptoKey, data : Uint8Array) {
+    // Extract the IV from the beginning of the data
+    let iv = data.slice(0, 16);
+    let ciphertext = data.slice(16);
+
+    // Decrypt the data using AES-CTR
+    let decrypted = await window.crypto.subtle.decrypt(
+        {
+            name: "AES-CTR",
+            counter: iv,
+            length: 64, // The rightmost 64 bits are used for the counter
+        },
+        secretKey,
+        ciphertext
+    );
     return new Uint8Array(decrypted);
 }
+
