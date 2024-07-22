@@ -493,6 +493,14 @@ mrnRadio.addEventListener('change', (event) => {
                     receiverMrnSelect.appendChild(mrnOption);
                 }
             }));
+        //Also add active SMMP Clients to the list
+        remoteClients.forEach((rc, mrn) => {
+            const mrnOption = document.createElement("option");
+            mrnOption.value = mrn
+            mrnOption.textContent = mrn
+            receiverMrnSelect.appendChild(mrnOption)
+        })
+
     }
 });
 
