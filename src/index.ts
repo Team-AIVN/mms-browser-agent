@@ -45,6 +45,7 @@ const sendContainer = document.getElementById("sendContainer") as HTMLDivElement
 const msgArea = document.getElementById("msgArea") as HTMLTextAreaElement;
 const receiverMrnSelect = document.getElementById("receiverMrn") as HTMLSelectElement;
 const sendBtn = document.getElementById("sendBtn") as HTMLButtonElement;
+const sendSmmpBtn = document.getElementById("sendSmmpBtn") as HTMLButtonElement;
 const disconnectBtn = document.getElementById("disconnectBtn") as HTMLButtonElement;
 const incomingArea = document.getElementById("incomingArea") as HTMLDivElement;
 
@@ -509,6 +510,8 @@ subjectRadio.addEventListener('change', (event) => {
         receiverMrnSelect.hidden = true;
         receiverMrnSelect.innerHTML = "<option value=\"\">---Please select an MRN---</option>";
         subjectSelect.hidden = false;
+        sendBtn.style.width = "100vw";
+        sendSmmpBtn.hidden = true;
     }
 });
 
@@ -755,18 +758,23 @@ sendBtn.addEventListener("click", async () => {
     if (!mrnRadio.checked && !subjectRadio.checked) {
         alert("You need to choose message type!");
     }
-
-
     let body: Uint8Array;
     if (encodedFile) {
-        console.log("B1")
         body = encodedFile;
     } else {
-        console.log("B2")
         const text = msgArea.value;
         const encoder = new TextEncoder();
         body = encoder.encode(text);
     }
+    await sendMsg(body)
+    console.log("MSG SENT!")
+    msgArea.value = "";
+    encodedFile = undefined;
+    loadedState.style.display = 'none';
+    unloadedState.style.display = 'block';
+});
+
+async function sendMsg(body : Uint8Array) {
 
     // set expiration to be one hour from now
     const expires = new Date();
@@ -796,65 +804,54 @@ sendBtn.addEventListener("click", async () => {
         sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
             recipients: [receiver]
         });
+
     } else if (subjectRadio.checked) {
         sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subjectSelect.options[subjectSelect.selectedIndex].value;
         subjectCastMsg = true
     }
 
-    /*let uint8Arrays: Uint8Array[] = [];
-    const encoder = new TextEncoder();
-
-    if (mrnRadio.checked) {
-        const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
-        sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
-            recipients: [receiver]
-        });
-        uint8Arrays.push(encoder.encode(receiver));
-    } else if (subjectRadio.checked) {
-        const subject = subjectSelect.options[subjectSelect.selectedIndex].value;
-        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subject;
-        uint8Arrays.push(encoder.encode(subject));
-    }
-
-    uint8Arrays.push(encoder.encode(expires.getTime().toString()));
-    uint8Arrays.push(encoder.encode(ownMrn));
-    uint8Arrays.push(encoder.encode(body.length.toString()));
-    uint8Arrays.push(body);
-
-    let length = uint8Arrays.reduce((acc, a) => acc + a.length, 0);
-
-    let bytesToBeSigned = new Uint8Array(length);
-    let offset = 0;
-    for (const array of uint8Arrays) {
-        bytesToBeSigned.set(array, offset);
-        offset += array.length;
-    }
-
-    const signature = new Uint8Array(await crypto.subtle.sign({
-        name: "ECDSA",
-        hash: "SHA-384"
-    }, privateKey, bytesToBeSigned));
-
-    const r = signature.slice(0, signature.length / 2);
-    const s = signature.slice(signature.length / 2, signature.length);
-
-    let sequence = new Sequence();
-    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(r)));
-    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(s)));
-    sendMsg.protocolMessage.sendMessage.applicationMessage.signature = new Uint8Array(sequence.toBER());*/
     let signedSendMsg = await signMessage(sendMsg, subjectCastMsg)
 
     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
     console.log("MMTP message: ", signedSendMsg);
     lastSentMessage = signedSendMsg;
     ws.send(toBeSent);
-    console.log("MSG SENT!")
+}
 
-    msgArea.value = "";
-    encodedFile = undefined;
-    loadedState.style.display = 'none';
-    unloadedState.style.display = 'block';
+sendSmmpBtn.addEventListener("click", async () => {
+    const receiverMrn = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
+    const rc = remoteClients.get(receiverMrn)
+    let flags : FlagsEnum[] = []
+    if (rc.confidentiality) {
+        flags.push(FlagsEnum.Confidentiality)
+    }
+    //Get the signing certificate
+    const text = msgArea.value;
+    const encoder = new TextEncoder();
+    const body = encoder.encode(text);
+    const encryptedBody = await encrypt(rc.symKey, body)
+    const smmpMessage = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(encryptedBody))
+    const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
+    const dataPayload = appendMagicWord(smmpPayload)
+    await sendMsg(dataPayload)
+    console.log("SMMP Message sent")
 });
+
+
+//If SMMP is established with receiver, the user can choose to send message as either MMTP or SMMP
+receiverMrnSelect.addEventListener("change", async () => {
+    if (remoteClients.has(mrnRadio.checked && receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value)) {
+        sendBtn.style.width = "0.5";
+        sendBtn.textContent = "Send MMTP";
+        sendBtn.style.display = "inline-block";
+        sendSmmpBtn.style.width = "0.5";
+        sendSmmpBtn.hidden = false;
+        sendSmmpBtn.style.display = "inline-block";
+    } else {
+        sendBtn.style.width = "100vw";
+        sendSmmpBtn.hidden = true;
+    }
+})
 
 smmpConnectBtn.addEventListener("click", async () => {
     const rcClientMrn = document.getElementById("rcClientMrn") as HTMLInputElement
@@ -982,7 +979,6 @@ function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
 
 
 function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number, smmpUuid : string, smmpData : Uint8Array) {
-    const magicBytes = new Uint8Array([0x53, 0x4D, 0x4D, 0x50]); //Ascii SMMP
     let controlBits = setFlags(flags)
 
     //Due to an unsafe cast in the Go Implementation - TODO: This needs to be changed in both implementations
