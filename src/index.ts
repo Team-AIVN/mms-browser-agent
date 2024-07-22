@@ -240,23 +240,22 @@ connectBtn.addEventListener("click", async () => {
                                     console.log("Remote client accepted initiation of SMMP session")
                                     const flags : FlagsEnum[] = [FlagsEnum.ACK, FlagsEnum.Confidentiality]
                                     let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
-                                    const smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
-                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, smmpPayload)
+                                    let smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
+                                    const finalPayload = appendMagicWord(smmpPayload)
+                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
                                     let signedSendMsg = await signMessage(mmtpMsg, false)
                                     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
                                     lastSentMessage = signedSendMsg;
                                     ws.send(toBeSent);
+                                    showSmmpSessions(remoteClients)
                                     //Send last ACK
                                 // 1st step handshake
                                 } else {
                                     console.log("Remote client wants to initiate SMMP session")
                                     let smmpAckMsg = getSmmpHandshakeAckMessage()
                                     const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
-                                    const magic = new Uint8Array([83, 77, 77, 80]);
-                                    const finalPayload = new Uint8Array(magic.length + smmpPayload.length)
-                                    finalPayload.set(magic, 0);
-                                    finalPayload.set(smmpPayload, magic.length);
-                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
+                                    const finalPayload = appendMagicWord(smmpPayload)
+                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, smmpPayload)
                                     let signedSendMsg = await signMessage(mmtpMsg, false)
                                     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
                                     lastSentMessage = signedSendMsg;
@@ -855,7 +854,8 @@ smmpConnectBtn.addEventListener("click", async () => {
 
     let smmpMsg = getSmmpHandshakeMessage()
     const smmpPayload = SmmpMessage.encode(smmpMsg).finish()
-    let mmtpMsg = getMmtpSendMrnMsg(rcClientMrn.value, smmpPayload)
+    const finalPayload = appendMagicWord(smmpPayload)
+    let mmtpMsg = getMmtpSendMrnMsg(rcClientMrn.value, finalPayload)
 
     let signedSendMsg = await signMessage(mmtpMsg, false)
 
@@ -974,9 +974,7 @@ function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
 
 
 function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number, smmpUuid : string, smmpData : Uint8Array) {
-    const magicBytes = new Uint8Array([0x50, 0x4D, 0x4D, 0x53]); //Ascii PMMS
-    const dataView = new DataView(magicBytes.buffer);
-    const magicInt = dataView.getInt32(0, false); // false for Big Endian
+    const magicBytes = new Uint8Array([0x53, 0x4D, 0x4D, 0x50]); //Ascii SMMP
     let controlBits = setFlags(flags)
 
     //Due to an unsafe cast in the Go Implementation - TODO: This needs to be changed in both implementations
@@ -986,7 +984,6 @@ function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number
 
     const smmpMsg = SmmpMessage.create({
         header: SmmpHeader.create({
-            magic: magicInt,
             control : arr,
             blockNum : blcNum,
             totalBlocks : totalBlcs,
@@ -1158,6 +1155,14 @@ async function decrypt(secretKey : CryptoKey, data : Uint8Array) {
         ciphertext
     );
     return new Uint8Array(decrypted);
+}
+
+function appendMagicWord(smmpPayload : Uint8Array) : Uint8Array {
+    const magic = new Uint8Array([83, 77, 77, 80]);
+    const finalPayload = new Uint8Array(magic.length + smmpPayload.length)
+    finalPayload.set(magic, 0);
+    finalPayload.set(smmpPayload, magic.length);
+    return finalPayload
 }
 
 function showSmmpSessions(sessions : Map<string,RemoteClient>) {
