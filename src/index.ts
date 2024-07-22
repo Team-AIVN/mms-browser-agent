@@ -767,6 +767,22 @@ sendBtn.addEventListener("click", async () => {
         body = encoder.encode(text);
     }
     await sendMsg(body)
+    setTimeout(() => {
+        sendBtn.textContent = 'Sent';
+        sendBtn.classList.remove('btn-primary');
+        sendBtn.classList.add('btn-success');
+        sendBtn.disabled = true;
+        //confirmationMessage.style.display = 'block';
+
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            sendBtn.textContent = 'Send MMTP';
+            sendBtn.classList.remove('btn-success');
+            sendBtn.classList.add('btn-primary');
+            sendBtn.disabled = false;
+            //confirmationMessage.style.display = 'none';
+        }, 3000);
+    }, 500);
     console.log("MSG SENT!")
     msgArea.value = "";
     encodedFile = undefined;
@@ -816,6 +832,7 @@ async function sendMsg(body : Uint8Array) {
     console.log("MMTP message: ", signedSendMsg);
     lastSentMessage = signedSendMsg;
     ws.send(toBeSent);
+
 }
 
 sendSmmpBtn.addEventListener("click", async () => {
@@ -834,6 +851,22 @@ sendSmmpBtn.addEventListener("click", async () => {
     const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
     const dataPayload = appendMagicWord(smmpPayload)
     await sendMsg(dataPayload)
+    setTimeout(() => {
+        sendSmmpBtn.textContent = 'Sent';
+        sendSmmpBtn.classList.remove('btn-warning');
+        sendSmmpBtn.classList.add('btn-success');
+        sendSmmpBtn.disabled = true;
+        //confirmationMessage.style.display = 'block';
+
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            sendSmmpBtn.textContent = 'Send SMMP';
+            sendSmmpBtn.classList.remove('btn-success');
+            sendSmmpBtn.classList.add('btn-warning');
+            sendSmmpBtn.disabled = false;
+            //confirmationMessage.style.display = 'none';
+        }, 3000);
+    }, 500);
     console.log("SMMP Message sent")
 });
 
