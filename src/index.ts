@@ -256,7 +256,7 @@ connectBtn.addEventListener("click", async () => {
                                     let smmpAckMsg = getSmmpHandshakeAckMessage()
                                     const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
                                     const finalPayload = appendMagicWord(smmpPayload)
-                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, smmpPayload)
+                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
                                     let signedSendMsg = await signMessage(mmtpMsg, false)
                                     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
                                     lastSentMessage = signedSendMsg;
@@ -772,7 +772,6 @@ sendBtn.addEventListener("click", async () => {
         sendBtn.classList.remove('btn-primary');
         sendBtn.classList.add('btn-success');
         sendBtn.disabled = true;
-        //confirmationMessage.style.display = 'block';
 
         // Reset button after 3 seconds
         setTimeout(() => {
@@ -780,7 +779,6 @@ sendBtn.addEventListener("click", async () => {
             sendBtn.classList.remove('btn-success');
             sendBtn.classList.add('btn-primary');
             sendBtn.disabled = false;
-            //confirmationMessage.style.display = 'none';
         }, 3000);
     }, 500);
     console.log("MSG SENT!")
