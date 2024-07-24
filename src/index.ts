@@ -90,6 +90,7 @@ const subscriptions: Map<string, Subscription> = new Map();
 
 let authenticated: boolean;
 let connectionType: string;
+connectionType = connTypeSelect.value;
 
 connTypeSelect.addEventListener("change", () => {
     authenticated = connTypeSelect.value === "authenticated";
