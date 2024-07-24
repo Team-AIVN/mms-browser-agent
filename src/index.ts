@@ -29,6 +29,7 @@ console.log("Hello World!");
 
 let ownMrn = "";
 
+const SMMP_SEGMENTATION_THRESHOLD = 49 * 1024 //49 KiB
 const connectContainer = document.getElementById("connectContainer") as HTMLDivElement;
 const receiveContainer = document.getElementById("receiveContainer") as HTMLDivElement;
 const urlInput = document.getElementById("edgeRouterAddr") as HTMLSelectElement;
@@ -298,7 +299,7 @@ connectBtn.addEventListener("click", async () => {
                                 msg.body = plaintext
                                 showReceivedMessage(msg, validSignature);
 
-                                //Advanced case - Handle segmentation
+                                //Advanced case - Handle segmentation of received messages TODO!
                             }
                         } else {
                             showReceivedMessage(msg, validSignature);
@@ -840,7 +841,6 @@ async function sendMsg(body : Uint8Array) {
 sendSmmpBtn.addEventListener("click", async () => {
     const receiverMrn = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
     const rc = remoteClients.get(receiverMrn)
-    let flags : FlagsEnum[] = []
 
     //Get the images to be sent
     let body: Uint8Array;
@@ -851,14 +851,21 @@ sendSmmpBtn.addEventListener("click", async () => {
         const encoder = new TextEncoder();
         body = encoder.encode(text);
     }
+    let flags : FlagsEnum[] = []
     if (rc.confidentiality) {
         flags.push(FlagsEnum.Confidentiality)
-        body = await encrypt(rc.symKey, body)
+    const smmpUuid = uuidv4()
+    const msgSegments = body.length / SMMP_SEGMENTATION_THRESHOLD + 1
+    console.log("MSG SEGMENTS: ", msgSegments)
+    for (let i = 0; i < msgSegments; i++) {
+            const segment = body.subarray(i*SMMP_SEGMENTATION_THRESHOLD, (i+1)*SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
+            const cipherSegment = await encrypt(rc.symKey, segment)
+            const smmpMessage = getSmmpMessage(flags, i, msgSegments, smmpUuid, new Uint8Array(cipherSegment))
+            console.log(smmpMessage)
+            const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
+            await sendSmmpMsg(smmpPayload)
+        }
     }
-    const smmpMessage = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(body))
-    const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
-    const dataPayload = appendMagicWord(smmpPayload)
-    await sendMsg(dataPayload)
     setTimeout(() => {
         sendSmmpBtn.textContent = 'Sent';
         sendSmmpBtn.classList.remove('btn-warning');
@@ -878,6 +885,11 @@ sendSmmpBtn.addEventListener("click", async () => {
     console.log("SMMP Message sent")
 });
 
+//Caller should pass the smmp payload as argument to this function
+async function sendSmmpMsg(body : Uint8Array) {
+    const dataPayload = appendMagicWord(body)
+    await sendMsg(dataPayload)
+}
 
 //If SMMP is established with receiver, the user can choose to send message as either MMTP or SMMP
 receiverMrnSelect.addEventListener("change", async () => {
