@@ -22,7 +22,7 @@ import {Certificate} from "pkijs";
 import {fromBER, Integer, Sequence} from "asn1js";
 import {bufToBigint} from "bigint-conversion";
 import {ResponseSearchObject} from "./SecomSearch";
-import {SmmpHeader, SmmpMessage} from "../smmp";
+import {ISmmpHeader, SmmpHeader, SmmpMessage} from "../smmp";
 import logo from './images/MCP-logo.png';
 
 console.log("Hello World!");
@@ -107,6 +107,7 @@ let ws: WebSocket;
 let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
 let remoteClients = new Map<string, RemoteClient>();
+let segmentedMessages = new Map<string, SegmentedMessage>();
 
 connectBtn.addEventListener("click", async () => {
     if (!connectionType) {
@@ -287,19 +288,32 @@ connectBtn.addEventListener("click", async () => {
                             } else if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
                                 console.log("Received regular smmp message")
                                 //Get the remote client key
-                                const rc = remoteClients.get(msg.header.sender)
+                                const rc = remoteClients.get(msg.header.sender);
 
                                 //Decrypt message
-                                const plaintext = await decrypt(rc.symKey, smmpMessage.data)
-                                const decoder = new TextDecoder('ascii');
-                                const plaintextStr = decoder.decode(plaintext);
+                                const plaintext = await decrypt(rc.symKey, smmpMessage.data);
+                                const segmented : boolean = (smmpMessage.header.totalBlocks > 1);
 
-                                //Display message
-                                console.log("Decrypted msg bytes: ", plaintext)
-                                msg.body = plaintext
+                                if (segmented) {
+                                    await handleSegmentedMessage(smmpMessage.header, plaintext)
+                                    const segMsg = (segmentedMessages.get(smmpMessage.header.uuid)) //undefined treated as false
+                                    const encoder = new TextEncoder();
+                                    if (segMsg.receivedBlocks === segMsg.totalBlocks) {
+                                        console.log("All blocks received")
+                                        msg.body  = encoder.encode("Segmented file received, click to download");
+                                    } else {
+                                        const formatStr = `Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}`
+                                        msg.body  = encoder.encode(formatStr);
+                                        showReceivedMessage(msg, validSignature)
+                                    }
+
+
+                                } else {
+                                    //No segmentation so simply display it
+                                    console.log("Decrypted msg bytes: ", plaintext)
+                                    msg.body = plaintext
+                                }
                                 showReceivedMessage(msg, validSignature);
-
-                                //Advanced case - Handle segmentation of received messages TODO!
                             }
                         } else {
                             showReceivedMessage(msg, validSignature);
@@ -479,6 +493,12 @@ interface RemoteClient {
     nonRepudiation: boolean,
 }
 
+interface SegmentedMessage {
+    data : Uint8Array
+    receivedBlocks : number
+    totalBlocks : number
+}
+
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
 const subjectRadio = document.getElementById('subject') as HTMLInputElement;
 
@@ -517,6 +537,7 @@ subjectRadio.addEventListener('change', (event) => {
         subjectSelect.hidden = false;
         sendBtn.style.width = "100vw";
         sendSmmpBtn.hidden = true;
+        sendBtn.textContent = "Send"
     }
 });
 
@@ -772,6 +793,7 @@ sendBtn.addEventListener("click", async () => {
         body = encoder.encode(text);
     }
     await sendMsg(body)
+    const oldText = sendBtn.textContent
     setTimeout(() => {
         sendBtn.textContent = 'Sent';
         sendBtn.classList.remove('btn-primary');
@@ -780,7 +802,7 @@ sendBtn.addEventListener("click", async () => {
 
         // Reset button after 3 seconds
         setTimeout(() => {
-            sendBtn.textContent = 'Send MMTP';
+            sendBtn.textContent = oldText;
             sendBtn.classList.remove('btn-success');
             sendBtn.classList.add('btn-primary');
             sendBtn.disabled = false;
@@ -903,6 +925,7 @@ receiverMrnSelect.addEventListener("change", async () => {
     } else {
         sendBtn.style.width = "100vw";
         sendSmmpBtn.hidden = true;
+        sendBtn.textContent = "Send"
     }
 })
 
@@ -1123,6 +1146,14 @@ const createRemoteClient = (pk: CryptoKey, sk: CryptoKey, conf: boolean, dAck: b
     };
 };
 
+const createSegmentedMessage = (rb : number, tb : number, maxBlockSize : number): SegmentedMessage => {
+    return {
+        receivedBlocks : rb,
+        totalBlocks : tb,
+        data : new Uint8Array(tb * maxBlockSize)
+    };
+};
+
 const loadedState = document.getElementById('file-state-loaded');
 const unloadedState = document.getElementById('file-state-unloaded');
 
@@ -1257,5 +1288,16 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
         activeSmmpSessionsDiv.appendChild(ul);
         activeSmmpSessionsDiv.hidden = false;
     }
+}
+
+async function handleSegmentedMessage(header : ISmmpHeader, plaintext : Uint8Array) {
+    //If no entry exists, create one
+    let segmentedMsg = segmentedMessages.get(header.uuid);
+    if (!segmentedMsg) {
+        segmentedMsg = createSegmentedMessage(0, header.totalBlocks, SMMP_SEGMENTATION_THRESHOLD)
+        segmentedMessages.set(header.uuid, segmentedMsg)
+    }
+    segmentedMsg.receivedBlocks++
+    segmentedMsg.data.set(plaintext, header.blockNum * SMMP_SEGMENTATION_THRESHOLD)
 }
 
