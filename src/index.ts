@@ -23,6 +23,7 @@ import {fromBER, Integer, Sequence} from "asn1js";
 import {bufToBigint} from "bigint-conversion";
 import {ResponseSearchObject} from "./SecomSearch";
 import {SmmpHeader, SmmpMessage} from "../smmp";
+import logo from './images/MCP-logo.png';
 
 console.log("Hello World!");
 
@@ -61,6 +62,12 @@ const mrnStoreUrl = "https://mrn-store.dmc.international";
 const msrSecomSearchUrl = "https://msr.maritimeconnectivity.net/api/secom/v1/searchService";
 
 const greenCheckMark = "\u2705";
+const logoCol = document.getElementById("logoColumn") as HTMLDivElement;
+const imgElement = document.createElement('img');
+imgElement.src = logo;
+imgElement.alt = 'MCP Logo';
+imgElement.width = 100
+logoCol.appendChild(imgElement);
 
 
 interface Subject {
@@ -838,7 +845,7 @@ sendSmmpBtn.addEventListener("click", async () => {
     const rc = remoteClients.get(receiverMrn)
     let flags : FlagsEnum[] = []
 
-    //Get the content to be sent
+    //Get the images to be sent
     let body: Uint8Array;
     if (encodedFile) {
         body = encodedFile;
@@ -1208,7 +1215,7 @@ function appendMagicWord(smmpPayload : Uint8Array) : Uint8Array {
 
 function showSmmpSessions(sessions : Map<string,RemoteClient>) {
     const activeSmmpSessionsDiv = document.getElementById('activeSmmpSessions');
-    activeSmmpSessionsDiv.innerHTML = ''; // Clear existing content
+    activeSmmpSessionsDiv.innerHTML = ''; // Clear existing images
 
     if (sessions.size > 0) {
         const ul = document.createElement('ul');
