@@ -837,15 +837,21 @@ sendSmmpBtn.addEventListener("click", async () => {
     const receiverMrn = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
     const rc = remoteClients.get(receiverMrn)
     let flags : FlagsEnum[] = []
+
+    //Get the content to be sent
+    let body: Uint8Array;
+    if (encodedFile) {
+        body = encodedFile;
+    } else {
+        const text = msgArea.value;
+        const encoder = new TextEncoder();
+        body = encoder.encode(text);
+    }
     if (rc.confidentiality) {
         flags.push(FlagsEnum.Confidentiality)
+        body = await encrypt(rc.symKey, body)
     }
-    //Get the signing certificate
-    const text = msgArea.value;
-    const encoder = new TextEncoder();
-    const body = encoder.encode(text);
-    const encryptedBody = await encrypt(rc.symKey, body)
-    const smmpMessage = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(encryptedBody))
+    const smmpMessage = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(body))
     const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
     const dataPayload = appendMagicWord(smmpPayload)
     await sendMsg(dataPayload)
