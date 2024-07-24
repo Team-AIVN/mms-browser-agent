@@ -67,6 +67,7 @@ const imgElement = document.createElement('img');
 imgElement.src = logo;
 imgElement.alt = 'MCP Logo';
 imgElement.width = 100
+imgElement.classList.add('mt-3', 'mb-3') //Margin to the top and bottom
 logoCol.appendChild(imgElement);
 
 
@@ -419,11 +420,6 @@ async function loadCertAndPrivateKeyFromFiles() {
 function extractFromPem(pemInput: string, inputType: string): ArrayBuffer {
     const b64 = pemInput.split(new RegExp(`-----BEGIN ${inputType}-----\r?\n?`))[1].split(`-----END ${inputType}-----`)[0];
     return str2ab(atob(b64));
-}
-
-function GetPkFromDerCert(derCert : Uint8Array) {
-
-
 }
 
 /*
