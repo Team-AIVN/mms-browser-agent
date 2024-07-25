@@ -1024,6 +1024,16 @@ smmpConnectBtn.addEventListener("click", async () => {
 //Message receive
 const receiveBtn = document.getElementById("receiveBtn") as HTMLButtonElement;
 receiveBtn.addEventListener("click", () => {
+    setTimeout(() => {
+        receiveBtn.textContent = 'Receiving...';
+        receiveBtn.classList.add('active');
+        receiveBtn.disabled = true;
+        setTimeout(() => {
+            receiveBtn.textContent = "Receive Messages";
+            receiveBtn.classList.remove('active');
+            receiveBtn.disabled = false;
+        }, 3000);
+    }, 500);
     const receive = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
         uuid: uuidv4(),
