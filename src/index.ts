@@ -57,7 +57,7 @@ const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElem
 //All SMMP relevant items
 const smmpMenu = document.getElementById("smmpMenu") as HTMLDivElement
 const smmpConnectBtn = document.getElementById("smmpConnectBtn") as HTMLButtonElement;
-
+const downloadReceivedBtn = document.getElementById("downloadReceived") as HTMLButtonElement;
 
 const mrnStoreUrl = "https://mrn-store.dmc.international";
 const msrSecomSearchUrl = "https://msr.maritimeconnectivity.net/api/secom/v1/searchService";
@@ -300,11 +300,14 @@ connectBtn.addEventListener("click", async () => {
                                     const encoder = new TextEncoder();
                                     if (segMsg.receivedBlocks === segMsg.totalBlocks) {
                                         console.log("All blocks received")
-                                        msg.body  = encoder.encode("Segmented file received, click to download");
-                                    } else {
-                                        const formatStr = `Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}`
-                                        msg.body  = encoder.encode(formatStr);
+                                        incomingArea.textContent = ''
+                                        msg.body = segMsg.data
                                         showReceivedMessage(msg, validSignature)
+
+                                    } else {
+                                        incomingArea.textContent = `Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}`
+                                        /*msg.body  = encoder.encode(formatStr);
+                                        showReceivedMessage(msg, validSignature)*/
                                     }
 
 
@@ -312,8 +315,8 @@ connectBtn.addEventListener("click", async () => {
                                     //No segmentation so simply display it
                                     console.log("Decrypted msg bytes: ", plaintext)
                                     msg.body = plaintext
+                                    showReceivedMessage(msg, validSignature);
                                 }
-                                showReceivedMessage(msg, validSignature);
                             }
                         } else {
                             showReceivedMessage(msg, validSignature);
@@ -725,6 +728,8 @@ const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the wor
 function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
     const payload = msg.body;
     const decoder = new TextDecoder();
+    console.log(payload.subarray(0, 4))
+
     if (arraysEqual(payload.subarray(0, 4), fileBytesArray)) {
         for (let i = 4; i < payload.length; i++) {
             if (arraysEqual(payload.subarray(i, i + 4), fileBytesArray)) {
@@ -732,6 +737,10 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
                 const fileName = decoder.decode(fileNameBytes);
                 const content = payload.subarray(i + 4);
 
+                const lineBreak = document.createElement('br');
+                if (incomingArea.textContent !== '') {
+                    incomingArea.appendChild(lineBreak);
+                }
                 incomingArea.append(`${msg.header.sender} sent: `);
                 const downloadLink = document.createElement("a");
                 downloadLink.href = "#";
@@ -741,15 +750,20 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
                     hidden_a.setAttribute('href', 'data:application/octet-stream;base64,' + bytesToBase64(content));
                     hidden_a.setAttribute('download', fileName);
                     document.body.appendChild(hidden_a);
-                    hidden_a.click();
 
+                    hidden_a.click();
                     e.preventDefault();
                 };
                 incomingArea.append(downloadLink);
+                downloadReceivedBtn.onclick = () => {
+                    downloadLink.click();
+                }
+                downloadReceivedBtn.hidden = false
                 break;
             }
         }
     } else {
+        downloadReceivedBtn.hidden = true
         const text = decoder.decode(payload);
         incomingArea.append(`${msg.header.sender} sent: ${text}`);
     }
@@ -912,6 +926,21 @@ async function sendSmmpMsg(body : Uint8Array) {
     const dataPayload = appendMagicWord(body)
     await sendMsg(dataPayload)
 }
+
+downloadReceivedBtn.addEventListener('click', async() => {
+    setTimeout(() => {
+        downloadReceivedBtn.textContent = 'Downloading...';
+        downloadReceivedBtn.classList.add('active')
+        downloadReceivedBtn.disabled = true;
+
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            downloadReceivedBtn.textContent = 'Download';
+            downloadReceivedBtn.classList.remove('active');
+            downloadReceivedBtn.disabled = false;
+        }, 3000);
+    }, 500);
+})
 
 //If SMMP is established with receiver, the user can choose to send message as either MMTP or SMMP
 receiverMrnSelect.addEventListener("change", async () => {
@@ -1292,6 +1321,7 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
 
 async function handleSegmentedMessage(header : ISmmpHeader, plaintext : Uint8Array) {
     //If no entry exists, create one
+    console.log("Received seg length: ", plaintext.length)
     let segmentedMsg = segmentedMessages.get(header.uuid);
     if (!segmentedMsg) {
         segmentedMsg = createSegmentedMessage(0, header.totalBlocks, SMMP_SEGMENTATION_THRESHOLD)
