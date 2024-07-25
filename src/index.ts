@@ -120,7 +120,7 @@ connectBtn.addEventListener("click", async () => {
         for (const rdn of certificate.subject.typesAndValues) {
             if (rdn.type === "0.9.2342.19200300.100.1.1") {
                 ownMrn = rdn.value.valueBlock.value;
-                mrnH3.textContent = ownMrn;
+                mrnH3.innerHTML = "<strong>My MRN:</strong> " + ownMrn;
                 mrnH3.hidden = false;
                 break;
             }
