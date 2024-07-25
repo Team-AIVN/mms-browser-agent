@@ -1342,24 +1342,56 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
 
         sessions.forEach((rc, mrn) => {
             const li = document.createElement('li');
-            li.classList.add('list-group-item');
+            li.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
 
-            // Create MRN span
+            // Create a div for the MRN span to keep it left-aligned
+            const mrnDiv = document.createElement('div');
             const mrnSpan = document.createElement('span');
-            mrnSpan.textContent = `MRN: ${mrn} `;
-            li.appendChild(mrnSpan);
+            mrnSpan.textContent = `${mrn}`;
+            mrnDiv.appendChild(mrnSpan);
+            li.appendChild(mrnDiv);
+
+            // Create a div for the boolean values to keep them right-aligned
+            const boolDiv = document.createElement('div');
+            boolDiv.classList.add('d-flex', 'flex-grow-1', 'justify-content-end');
 
             const confSpan = document.createElement('span');
-            confSpan.textContent = `C: ${rc.confidentiality} `;
-            li.appendChild(confSpan);
+            confSpan.textContent = `C: ${rc.confidentiality}`;
+            confSpan.classList.add('mx-1')
+            boolDiv.appendChild(confSpan);
 
             const deliverySpan = document.createElement('span');
-            deliverySpan.textContent = `D: ${rc.deliveryAck} `;
-            li.appendChild(deliverySpan);
+            deliverySpan.textContent = `D: ${rc.deliveryAck}`;
+            deliverySpan.classList.add('mx-1')
+            boolDiv.appendChild(deliverySpan);
 
             const nonrepudiationSpan = document.createElement('span');
-            nonrepudiationSpan.textContent = `N: ${rc.nonRepudiation} `;
-            li.appendChild(nonrepudiationSpan);
+            nonrepudiationSpan.textContent = `N: ${rc.nonRepudiation}`;
+            nonrepudiationSpan.classList.add('mx-1')
+            boolDiv.appendChild(nonrepudiationSpan);
+
+
+            li.appendChild(boolDiv);
+
+            const endDiv = document.createElement('div');
+            endDiv.classList.add('ml-auto');
+            const endSessionBtn = document.createElement('button');
+            endSessionBtn.classList.add('btn', 'btn-danger', 'btn-sm')
+            endSessionBtn.textContent = 'x'
+            endSessionBtn.addEventListener('click', async () => {
+                //TODO Send SMMP Close segment once defined in the protocol
+                remoteClients.delete(mrn)
+                endSessionBtn.disabled = true
+                endSessionBtn.classList.add('active')
+                setTimeout(() => {
+                   li.remove()
+                }, 2000);
+
+            })
+
+            endDiv.appendChild(endSessionBtn)
+
+            li.appendChild(endDiv)
 
             // Append the list item to the list
             ul.appendChild(li);
