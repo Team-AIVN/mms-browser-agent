@@ -108,6 +108,8 @@ let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
 let remoteClients = new Map<string, RemoteClient>();
 let segmentedMessages = new Map<string, SegmentedMessage>();
+let ongoingSmmpHandshakes = new Map<string, NodeJS.Timer>();
+
 
 connectBtn.addEventListener("click", async () => {
     if (!connectionType) {
@@ -249,17 +251,26 @@ connectBtn.addEventListener("click", async () => {
 
                                 // 2nd step handshake
                                 if (hasFlags(flags, [FlagsEnum.Handshake, FlagsEnum.Confidentiality, FlagsEnum.ACK])) {
-                                    console.log("Remote client accepted initiation of SMMP session")
-                                    const flags : FlagsEnum[] = [FlagsEnum.ACK, FlagsEnum.Confidentiality]
-                                    let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
-                                    let smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
-                                    const finalPayload = appendMagicWord(smmpPayload)
-                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
-                                    let signedSendMsg = await signMessage(mmtpMsg, false)
-                                    const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
-                                    lastSentMessage = signedSendMsg;
-                                    ws.send(toBeSent);
-                                    showSmmpSessions(remoteClients)
+                                    const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
+                                    //Check if RC responded within time limit
+                                    if (handshakeRc) {
+                                        console.log("Remote client accepted initiation of SMMP session")
+                                        const flags : FlagsEnum[] = [FlagsEnum.ACK, FlagsEnum.Confidentiality]
+                                        let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
+                                        let smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
+                                        const finalPayload = appendMagicWord(smmpPayload)
+                                        let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
+                                        let signedSendMsg = await signMessage(mmtpMsg, false)
+                                        const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+                                        lastSentMessage = signedSendMsg;
+                                        ws.send(toBeSent);
+                                        clearInterval(handshakeRc);
+                                        smmpConnectBtn.textContent = 'Connect SMMP';
+                                        smmpConnectBtn.classList.remove('active');
+                                        smmpConnectBtn.disabled = false;
+                                        ongoingSmmpHandshakes.delete(msg.header.sender)
+                                        showSmmpSessions(remoteClients)
+                                    }
                                     //Send last ACK
                                 // 1st step handshake
                                 } else {
@@ -280,7 +291,6 @@ connectBtn.addEventListener("click", async () => {
 
                             // Case - last part of three-way handshake, i.e. 3rd step of three-way handshake
                             } else if (hasFlags(flags, [FlagsEnum.ACK, FlagsEnum.Confidentiality])) {
-                                //Make it happen here
                                 showSmmpSessions(remoteClients)
                                 console.log("Last part of three-way-handshake ACK - session is now setup!")
 
@@ -494,6 +504,10 @@ interface RemoteClient {
     confidentiality : boolean,
     deliveryAck : boolean,
     nonRepudiation: boolean,
+}
+
+interface SmmpConnectTimeout {
+    timeoutCounter : NodeJS.Timer
 }
 
 interface SegmentedMessage {
@@ -907,7 +921,6 @@ sendSmmpBtn.addEventListener("click", async () => {
         sendSmmpBtn.classList.remove('btn-warning');
         sendSmmpBtn.classList.add('btn-success');
         sendSmmpBtn.disabled = true;
-        //confirmationMessage.style.display = 'block';
 
         // Reset button after 3 seconds
         setTimeout(() => {
@@ -915,7 +928,6 @@ sendSmmpBtn.addEventListener("click", async () => {
             sendSmmpBtn.classList.remove('btn-success');
             sendSmmpBtn.classList.add('btn-warning');
             sendSmmpBtn.disabled = false;
-            //confirmationMessage.style.display = 'none';
         }, 3000);
     }, 500);
     console.log("SMMP Message sent")
@@ -962,6 +974,12 @@ smmpConnectBtn.addEventListener("click", async () => {
     const rcClientMrn = document.getElementById("rcClientMrn") as HTMLInputElement
     console.log(rcClientMrn.value)
 
+    setTimeout(() => {
+        smmpConnectBtn.textContent = 'Awaiting Remote Client...';
+        smmpConnectBtn.classList.add('active')
+        smmpConnectBtn.disabled = true;
+    }, 500);
+
     let smmpMsg = getSmmpHandshakeMessage()
     const smmpPayload = SmmpMessage.encode(smmpMsg).finish()
     const finalPayload = appendMagicWord(smmpPayload)
@@ -973,6 +991,27 @@ smmpConnectBtn.addEventListener("click", async () => {
     console.log("MMTP message: ", signedSendMsg);
     lastSentMessage = signedSendMsg;
     ws.send(toBeSent);
+
+    //Button countdown
+    let count = 15
+    const countdownInterval = setInterval(() => {
+        smmpConnectBtn.textContent = `Awaiting Remote Client...${count}`;
+        count--;
+
+        // When the countdown reaches 0, stop the interval and update the button text
+        if (count< 0) {
+            clearInterval(countdownInterval);
+            smmpConnectBtn.textContent = 'No response received';
+            setTimeout(() => {
+                smmpConnectBtn.textContent = 'Connect SMMP';
+                smmpConnectBtn.classList.remove('active');
+                smmpConnectBtn.disabled = false;
+                ongoingSmmpHandshakes.delete(rcClientMrn.value)
+            }, 2000);
+        }
+    }, 1000); // 1000 milliseconds = 1 second
+    ongoingSmmpHandshakes.set(rcClientMrn.value, countdownInterval)
+
     console.log("MSG SENT!")
 
     msgArea.value = "";
@@ -1182,6 +1221,7 @@ const createSegmentedMessage = (rb : number, tb : number, maxBlockSize : number)
         data : new Uint8Array(tb * maxBlockSize)
     };
 };
+
 
 const loadedState = document.getElementById('file-state-loaded');
 const unloadedState = document.getElementById('file-state-unloaded');
