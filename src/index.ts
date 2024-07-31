@@ -182,6 +182,8 @@ connectBtn.addEventListener("click", async () => {
                 initialized = true;
 
                 disconnectBtn.addEventListener("click", () => {
+                    disconnectBtn.disabled = true;
+                    disconnectBtn.classList.add('active');
                     const disconnectMsg = MmtpMessage.create({
                         msgType: MsgType.PROTOCOL_MESSAGE,
                         uuid: uuidv4(),
@@ -307,7 +309,6 @@ connectBtn.addEventListener("click", async () => {
                                 if (segmented) {
                                     await handleSegmentedMessage(smmpMessage.header, plaintext)
                                     const segMsg = (segmentedMessages.get(smmpMessage.header.uuid)) //undefined treated as false
-                                    const encoder = new TextEncoder();
                                     if (segMsg.receivedBlocks === segMsg.totalBlocks) {
                                         console.log("All blocks received")
                                         incomingArea.textContent = ''
@@ -435,6 +436,7 @@ async function loadCertAndPrivateKeyFromFiles() {
     }
 
     certificate = Certificate.fromBER(certBytes);
+    console.log("Cert is", certificate)
     privateKey = await crypto.subtle.importKey("pkcs8", privKeyBytes, {
         name: "ECDSA",
         namedCurve: "P-384"
@@ -506,10 +508,6 @@ interface RemoteClient {
     nonRepudiation: boolean,
 }
 
-interface SmmpConnectTimeout {
-    timeoutCounter : NodeJS.Timer
-}
-
 interface SegmentedMessage {
     data : Uint8Array
     receivedBlocks : number
@@ -519,7 +517,7 @@ interface SegmentedMessage {
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
 const subjectRadio = document.getElementById('subject') as HTMLInputElement;
 
-mrnRadio.addEventListener('change', (event) => {
+mrnRadio.addEventListener('change', () => {
     if (mrnRadio.checked) {
         subjectSelect.hidden = true;
         receiverMrnSelect.hidden = false;
@@ -547,7 +545,7 @@ mrnRadio.addEventListener('change', (event) => {
     }
 });
 
-subjectRadio.addEventListener('change', (event) => {
+subjectRadio.addEventListener('change', () => {
     if (subjectRadio.checked) {
         receiverMrnSelect.hidden = true;
         receiverMrnSelect.innerHTML = "<option value=\"\">---Please select an MRN---</option>";
@@ -1059,7 +1057,6 @@ const fileInput = document.getElementById('fileInput');
 fileInput.addEventListener("change", handleFiles, false);
 
 function handleFiles() {
-    const fileList = this.files; /* now you can work with the file list */
 
     const file: File = this.files[0];
     if (file) {
@@ -1140,7 +1137,7 @@ function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number
     arr[1] = controlBits
     console.log(arr.toString())
 
-    const smmpMsg = SmmpMessage.create({
+    return SmmpMessage.create({
         header: SmmpHeader.create({
             control : arr,
             blockNum : blcNum,
@@ -1150,7 +1147,6 @@ function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number
         }),
         data : smmpData
     })
-    return smmpMsg
 }
 
 function getSmmpHandshakeMessage() {
