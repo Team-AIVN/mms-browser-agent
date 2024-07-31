@@ -300,14 +300,28 @@ connectBtn.addEventListener("click", async () => {
                                 if (segmented) {
                                     await handleSegmentedMessage(smmpMessage.header, plaintext)
                                     const segMsg = (segmentedMessages.get(smmpMessage.header.uuid)) //undefined treated as false
+                                    const segmentSpan: HTMLSpanElement | null = incomingArea.querySelector('span#newSpan');
+
+                                    if (segmentSpan) {
+                                        segmentSpan.remove()
+                                    } else {
+                                        if (incomingArea.textContent !== '') {
+                                            const lineBreak = document.createElement('br');
+                                            incomingArea.prepend(lineBreak);
+                                        }
+                                    }
+                                    const newSpan = document.createElement("span");
+                                    newSpan.id = "newSpan";
+                                    newSpan.setAttribute("data-toggle", "tooltip");
+                                    newSpan.innerHTML = `<b>Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}</b>`;
+                                    const date = new Date().toString();
+                                    newSpan.title = `${date}`;
+
+                                    incomingArea.prepend(newSpan);
                                     if (segMsg.receivedBlocks === segMsg.totalBlocks) {
-                                        incomingArea.textContent = ''
+                                        newSpan.remove()
                                         msg.body = segMsg.data
                                         showReceivedMessage(msg, validSignature)
-
-                                    } else {
-                                        //CASE: Received a part of a larger segmented message
-                                        incomingArea.textContent = `Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}`
                                     }
                                 } else {
                                     //No segmentation so simply display the decrypted message
@@ -725,6 +739,7 @@ const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the wor
 function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
     const payload = msg.body;
     const decoder = new TextDecoder();
+    const lineBreak = document.createElement('br');
     console.log(payload.subarray(0, 4))
 
     if (arraysEqual(payload.subarray(0, 4), fileBytesArray)) {
@@ -733,12 +748,8 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
                 const fileNameBytes = payload.subarray(4, i);
                 const fileName = decoder.decode(fileNameBytes);
                 const content = payload.subarray(i + 4);
+                let newStr = ""
 
-                const lineBreak = document.createElement('br');
-                if (incomingArea.textContent !== '') {
-                    incomingArea.appendChild(lineBreak);
-                }
-                incomingArea.append(`${msg.header.sender} sent: `);
                 const downloadLink = document.createElement("a");
                 downloadLink.href = "#";
                 downloadLink.textContent = fileName;
@@ -747,11 +758,20 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
                     hidden_a.setAttribute('href', 'data:application/octet-stream;base64,' + bytesToBase64(content));
                     hidden_a.setAttribute('download', fileName);
                     document.body.appendChild(hidden_a);
-
                     hidden_a.click();
+
                     e.preventDefault();
                 };
-                incomingArea.append(downloadLink);
+                if (incomingArea.textContent !== '') {
+                    incomingArea.prepend(lineBreak);
+                }
+                const textSpan = document.createElement("span");
+                textSpan.setAttribute("data-toggle", "tooltip");
+                textSpan.textContent = `${msg.header.sender} sent: `;
+                const date = Date()
+                textSpan.title = `${date}`
+                incomingArea.prepend(textSpan)
+                textSpan.append(downloadLink);
                 downloadReceivedBtn.onclick = () => {
                     downloadLink.click();
                 }
@@ -762,7 +782,15 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
     } else {
         downloadReceivedBtn.hidden = true
         const text = decoder.decode(payload);
-        incomingArea.append(`${msg.header.sender} sent: ${text}`);
+        const textSpan = document.createElement("span");
+        textSpan.setAttribute("data-toggle", "tooltip");
+        textSpan.textContent = `${msg.header.sender} sent: ${text}`;
+        const date = Date()
+        textSpan.title = `${date}`
+        if (incomingArea.textContent !== '') {
+            incomingArea.prepend(lineBreak);
+        }
+        incomingArea.prepend(textSpan)
     }
     if (signatureVerificationResponse.valid) {
         const signatureStatusSpan = document.createElement("span");
@@ -771,9 +799,12 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
         signatureStatusSpan.setAttribute("data-placement", "right");
         signatureStatusSpan.textContent = greenCheckMark;
         signatureStatusSpan.title = `The signature was successfully verified using certificate for ${signatureVerificationResponse.signer} with serial number ${signatureVerificationResponse.serialNumber.toString()}`;
-        incomingArea.append(signatureStatusSpan);
+
+        if (incomingArea.textContent !== '') {
+            incomingArea.prepend(lineBreak);
+        }
+        incomingArea.prepend(signatureStatusSpan);
     }
-    incomingArea.appendChild(document.createElement('br'));
 }
 
 function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
