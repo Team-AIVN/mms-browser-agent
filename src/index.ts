@@ -582,8 +582,8 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
         signatureStatusSpan.textContent = greenCheckMark;
         signatureStatusSpan.title = `The signature was successfully verified using certificate for ${signatureVerificationResponse.signer} with serial number ${signatureVerificationResponse.serialNumber.toString()}`;
         incomingArea.append(signatureStatusSpan);
-        incomingArea.appendChild(document.createElement('br'));
     }
+    incomingArea.appendChild(document.createElement('br'));
 }
 
 function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
