@@ -25,8 +25,7 @@ import {ResponseSearchObject} from "./SecomSearch";
 import {ISmmpHeader, SmmpHeader, SmmpMessage} from "../smmp";
 import logo from './images/MCP-logo.png';
 
-console.log("Hello World!");
-
+//To store the Agents/Clients own MRN loaded from the certificate
 let ownMrn = "";
 
 const SMMP_SEGMENTATION_THRESHOLD = 49 * 1024 //49 KiB
@@ -70,7 +69,6 @@ imgElement.alt = 'MCP Logo';
 imgElement.width = 100
 imgElement.classList.add('mt-3', 'mb-3') //Margin to the top and bottom
 logoCol.appendChild(imgElement);
-
 
 interface Subject {
     value: string,
@@ -127,7 +125,6 @@ connectBtn.addEventListener("click", async () => {
                 break;
             }
         }
-        console.log(ownMrn);
     }
 
     let wsUrl = urlInput.value;
@@ -218,18 +215,14 @@ connectBtn.addEventListener("click", async () => {
 
                         //Check if SMMP and in that case handle it as SMMP
                         let msgIsSmmp = await isSmmp(msg)
-                        console.log("IS SMMP?", msgIsSmmp)
                         if (msgIsSmmp) {
                             const smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body.subarray(4,msg.body.length)));
                             const flags : number = smmpMessage.header.control[1]
                             //Handle cases of SMMP messages
-                            console.log("flags", flags)
                             if (hasFlags(flags, [FlagsEnum.Handshake, FlagsEnum.Confidentiality])) {
-                                console.log("initiation")
 
                                 //Parse raw key from remote clients DER certificate
                                 const cert = Certificate.fromBER(smmpMessage.data);
-                                console.log("CERT parsed")
                                 const rcPubKey = await cert.getPublicKey(
                                     {
                                         algorithm: {
@@ -249,7 +242,6 @@ connectBtn.addEventListener("click", async () => {
 
                                 //Store remote client in a map, identified by MRN
                                 remoteClients.set(msg.header.sender, remoteClient)
-                                console.log("Size is", remoteClients.size)
 
                                 // 2nd step handshake
                                 if (hasFlags(flags, [FlagsEnum.Handshake, FlagsEnum.Confidentiality, FlagsEnum.ACK])) {
@@ -294,11 +286,10 @@ connectBtn.addEventListener("click", async () => {
                             // Case - last part of three-way handshake, i.e. 3rd step of three-way handshake
                             } else if (hasFlags(flags, [FlagsEnum.ACK, FlagsEnum.Confidentiality])) {
                                 showSmmpSessions(remoteClients)
-                                console.log("Last part of three-way-handshake ACK - session is now setup!")
+                                console.log("Last part of three-way-handshake ACK - SMMP session is now setup!")
 
                             // Case regular reception of an encrypted message
                             } else if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
-                                console.log("Received regular smmp message")
                                 //Get the remote client key
                                 const rc = remoteClients.get(msg.header.sender);
 
@@ -310,20 +301,16 @@ connectBtn.addEventListener("click", async () => {
                                     await handleSegmentedMessage(smmpMessage.header, plaintext)
                                     const segMsg = (segmentedMessages.get(smmpMessage.header.uuid)) //undefined treated as false
                                     if (segMsg.receivedBlocks === segMsg.totalBlocks) {
-                                        console.log("All blocks received")
                                         incomingArea.textContent = ''
                                         msg.body = segMsg.data
                                         showReceivedMessage(msg, validSignature)
 
                                     } else {
+                                        //CASE: Received a part of a larger segmented message
                                         incomingArea.textContent = `Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}`
-                                        /*msg.body  = encoder.encode(formatStr);
-                                        showReceivedMessage(msg, validSignature)*/
                                     }
-
-
                                 } else {
-                                    //No segmentation so simply display it
+                                    //No segmentation so simply display the decrypted message
                                     console.log("Decrypted msg bytes: ", plaintext)
                                     msg.body = plaintext
                                     showReceivedMessage(msg, validSignature);
@@ -349,9 +336,7 @@ connectBtn.addEventListener("click", async () => {
                             })
                         })
                     });
-
                     msgBlob = MmtpMessage.encode(receive).finish();
-
                     lastSentMessage = receive;
                     ws.send(msgBlob);
                 }
@@ -880,7 +865,7 @@ async function sendMsg(body : Uint8Array) {
     let signedSendMsg = await signMessage(sendMsg, subjectCastMsg)
 
     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
-    console.log("MMTP message: ", signedSendMsg);
+    console.log("Sent MMTP message: ", signedSendMsg);
     lastSentMessage = signedSendMsg;
     ws.send(toBeSent);
 
@@ -928,7 +913,6 @@ sendSmmpBtn.addEventListener("click", async () => {
             sendSmmpBtn.disabled = false;
         }, 3000);
     }, 500);
-    console.log("SMMP Message sent")
 });
 
 //Caller should pass the smmp payload as argument to this function
@@ -1068,11 +1052,10 @@ function handleFiles() {
             loadedState.style.display = 'block';
             unloadedState.style.display = 'none';
         });
-        console.log("call finished");
     }
 }
 
-//Define helper SMMP Functions---------------------------
+//-------------Definition of SMMP guarantees---------------
 enum FlagsEnum {
     Handshake = 1 << 0,         // H (bit value 1)
     ACK = 1 << 1,               // A (bit value 2)
@@ -1126,9 +1109,6 @@ function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
     return sendMsg
 }
 
-
-
-
 function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number, smmpUuid : string, smmpData : Uint8Array) {
     let controlBits = setFlags(flags)
 
@@ -1154,7 +1134,6 @@ function getSmmpHandshakeMessage() {
     //Get the signing certificate
     return getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(certBytes))
 }
-
 
 function getSmmpHandshakeAckMessage() {
     const flags : FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.ACK, FlagsEnum.Confidentiality]
@@ -1207,8 +1186,6 @@ async function signMessage(msg : MmtpMessage, subject : boolean) {
     return msg
 }
 
-
-
 //Factory Function to create a new RemoteClient
 const createRemoteClient = (pk: CryptoKey, sk: CryptoKey, conf: boolean, dAck: boolean): RemoteClient => {
     return {
@@ -1228,13 +1205,11 @@ const createSegmentedMessage = (rb : number, tb : number, maxBlockSize : number)
     };
 };
 
-
 const loadedState = document.getElementById('file-state-loaded');
 const unloadedState = document.getElementById('file-state-unloaded');
 
 loadedState.style.display = 'none';
 unloadedState.style.display = 'block';
-
 
 //Derives a shared AES-CTR 256-bit key for session confidentiality
 async function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
@@ -1249,7 +1224,7 @@ async function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
         throw new Error('Public key must be an ECDH key with P-384 curve');
     }
 
-    const keyD =  await window.crypto.subtle.deriveKey(
+    return await window.crypto.subtle.deriveKey(
         {
             name: "ECDH",
             public: publicKey,
@@ -1262,27 +1237,12 @@ async function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
         true,
         ["encrypt", "decrypt"],
     );
-    //THE BELOW IS FOR DEBUG ONLY
-    // Export the derived key to a raw format (ArrayBuffer)
-    const exportedKey = await window.crypto.subtle.exportKey('raw', keyD);
-
-    // Convert the ArrayBuffer to Uint8Array for easier handling
-    const keyArray = new Uint8Array(exportedKey);
-
-    // Convert the Uint8Array to a hexadecimal string for easy reading
-    const keyHex = Array.from(keyArray).map(b => b.toString(16).padStart(2, '0')).join('');
-
-    // Print the derived key to the console
-    console.log('Derived Key (Hex):', keyHex);
-    return keyD
 }
 
 //Inspired from https://github.com/mdn/dom-examples/blob/main/web-crypto/derive-key/ecdh.js
 //Note from  NIST SP800-38A standard the max number of blocks MAY NOT EXCEED 2^64
 async function encrypt(secretKey : CryptoKey, data : Uint8Array) {
     let iv = window.crypto.getRandomValues(new Uint8Array(16));
-    //Rightmost length bits shall be used for counter and the first half for the IV
-
     let ciphertext = await crypto.subtle.encrypt(
     {
         name: "AES-CTR",
@@ -1399,7 +1359,6 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
 
 async function handleSegmentedMessage(header : ISmmpHeader, plaintext : Uint8Array) {
     //If no entry exists, create one
-    console.log("Received seg length: ", plaintext.length)
     let segmentedMsg = segmentedMessages.get(header.uuid);
     if (!segmentedMsg) {
         segmentedMsg = createSegmentedMessage(0, header.totalBlocks, SMMP_SEGMENTATION_THRESHOLD)
