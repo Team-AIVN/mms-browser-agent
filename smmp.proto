@@ -3,16 +3,24 @@ syntax = "proto3";
 option go_package = "./smmp";
 
 message SmmpHeader {
-  int32 magic = 1;
-  bytes control = 2; //LSB H A C I A D N, should always have length 1
+  bytes control = 2;
   uint32 payloadLen = 3;
-  uint32 blockNum = 4;
-  uint32 totalBlocks = 5;
+  optional uint32 blockNum = 4;
+  optional uint32 totalBlocks = 5;
   string uuid = 6;
+  repeated Curve curves = 7;
+
+}
+
+enum Curve {
+  unspecified = 0;
+  secp256r1 = 1;
+  secp384r1 = 2;
 }
 
 message SmmpMessage {
   SmmpHeader header = 1;
   bytes data = 2;
 }
+
 

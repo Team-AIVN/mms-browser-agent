@@ -22,11 +22,13 @@ import {Certificate} from "pkijs";
 import {fromBER, Integer, Sequence} from "asn1js";
 import {bufToBigint} from "bigint-conversion";
 import {ResponseSearchObject} from "./SecomSearch";
+import {ISmmpHeader, SmmpHeader, SmmpMessage} from "../smmp";
+import logo from './images/MCP-logo.png';
 
-console.log("Hello World!");
-
+//To store the Agents/Clients own MRN loaded from the certificate
 let ownMrn = "";
 
+const SMMP_SEGMENTATION_THRESHOLD = 49 * 1024 //49 KiB
 const connectContainer = document.getElementById("connectContainer") as HTMLDivElement;
 const receiveContainer = document.getElementById("receiveContainer") as HTMLDivElement;
 const urlInput = document.getElementById("edgeRouterAddr") as HTMLSelectElement;
@@ -44,16 +46,29 @@ const sendContainer = document.getElementById("sendContainer") as HTMLDivElement
 const msgArea = document.getElementById("msgArea") as HTMLTextAreaElement;
 const receiverMrnSelect = document.getElementById("receiverMrn") as HTMLSelectElement;
 const sendBtn = document.getElementById("sendBtn") as HTMLButtonElement;
+const sendSmmpBtn = document.getElementById("sendSmmpBtn") as HTMLButtonElement;
 const disconnectBtn = document.getElementById("disconnectBtn") as HTMLButtonElement;
 const incomingArea = document.getElementById("incomingArea") as HTMLDivElement;
 
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
 
+//All SMMP relevant items
+const smmpMenu = document.getElementById("smmpMenu") as HTMLDivElement
+const smmpConnectBtn = document.getElementById("smmpConnectBtn") as HTMLButtonElement;
+const downloadReceivedBtn = document.getElementById("downloadReceived") as HTMLButtonElement;
+
 const mrnStoreUrl = "https://mrn-store.dmc.international";
 const msrSecomSearchUrl = "https://msr.maritimeconnectivity.net/api/secom/v1/searchService";
 
 const greenCheckMark = "\u2705";
+const logoCol = document.getElementById("logoColumn") as HTMLDivElement;
+const imgElement = document.createElement('img');
+imgElement.src = logo;
+imgElement.alt = 'MCP Logo';
+imgElement.width = 100
+imgElement.classList.add('mt-3', 'mb-3') //Margin to the top and bottom
+logoCol.appendChild(imgElement);
 
 interface Subject {
     value: string,
@@ -74,6 +89,7 @@ const subscriptions: Map<string, Subscription> = new Map();
 
 let authenticated: boolean;
 let connectionType: string;
+connectionType = connTypeSelect.value;
 
 connTypeSelect.addEventListener("change", () => {
     authenticated = connTypeSelect.value === "authenticated";
@@ -83,10 +99,15 @@ connTypeSelect.addEventListener("change", () => {
 
 let certificate: Certificate;
 let privateKey: CryptoKey;
+let privateKeyEcdh : CryptoKey;
 
 let ws: WebSocket;
 let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
+let remoteClients = new Map<string, RemoteClient>();
+let segmentedMessages = new Map<string, SegmentedMessage>();
+let ongoingSmmpHandshakes = new Map<string, NodeJS.Timer>();
+
 
 connectBtn.addEventListener("click", async () => {
     if (!connectionType) {
@@ -99,12 +120,11 @@ connectBtn.addEventListener("click", async () => {
         for (const rdn of certificate.subject.typesAndValues) {
             if (rdn.type === "0.9.2342.19200300.100.1.1") {
                 ownMrn = rdn.value.valueBlock.value;
-                mrnH3.textContent = ownMrn;
+                mrnH3.innerHTML = "<strong>My MRN:</strong> " + ownMrn;
                 mrnH3.hidden = false;
                 break;
             }
         }
-        console.log(ownMrn);
     }
 
     let wsUrl = urlInput.value;
@@ -139,6 +159,7 @@ connectBtn.addEventListener("click", async () => {
 
                 if (authenticated) {
                     sendContainer.hidden = false;
+                    smmpMenu.hidden = false;
                     const subMsg = MmtpMessage.create({
                         msgType: MsgType.PROTOCOL_MESSAGE,
                         uuid: uuidv4(),
@@ -158,6 +179,8 @@ connectBtn.addEventListener("click", async () => {
                 initialized = true;
 
                 disconnectBtn.addEventListener("click", () => {
+                    disconnectBtn.disabled = true;
+                    disconnectBtn.classList.add('active');
                     const disconnectMsg = MmtpMessage.create({
                         msgType: MsgType.PROTOCOL_MESSAGE,
                         uuid: uuidv4(),
@@ -189,7 +212,162 @@ connectBtn.addEventListener("click", async () => {
                     const msgs = mmtpMessage.responseMessage.applicationMessages;
                     for (const msg of msgs) {
                         const validSignature = await verifySignatureOnMessage(msg);
-                        showReceivedMessage(msg, validSignature);
+
+                        //Check if SMMP and in that case handle it as SMMP
+                        let msgIsSmmp = await isSmmp(msg)
+                        if (msgIsSmmp) {
+                            const smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body.subarray(4,msg.body.length)));
+                            const flags : number = smmpMessage.header.control[0]
+
+                            console.log("bef hasflags")
+                            //Handle cases of SMMP messages
+                            console.log("Flags:", flags)
+                            if (hasFlags(flags, [FlagsEnum.Handshake])) {
+                                console.log("aft hasflags")
+
+                                //Parse raw key from remote clients DER certificate
+                                const cert = Certificate.fromBER(smmpMessage.data);
+                                const rcPubKey = await cert.getPublicKey(
+                                    {
+                                        algorithm: {
+                                            algorithm: {
+                                                name: "ECDH",
+                                                namedCurve: "P-384",
+                                            },
+                                            usages: ["deriveKey"],
+                                        },
+                                    },
+                                )
+
+                                //Perform ECDH
+                                let conf = false
+                                let sharedKey
+                                    if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
+                                        sharedKey = await deriveSecretKey(privateKeyEcdh, rcPubKey)
+                                        conf = true
+                                    }
+                                let deliveryGuarantee = false
+                                if (hasFlags(flags, [FlagsEnum.DeliveryGuarantee])) {
+                                    deliveryGuarantee = true
+                                }
+
+                                //Create a remote client instance we can keep track of
+                                const remoteClient = createRemoteClient(rcPubKey, sharedKey, conf, deliveryGuarantee)
+
+                                //Store remote client in a map, identified by MRN
+                                remoteClients.set(msg.header.sender, remoteClient)
+
+                                // 2nd step handshake
+                                if (hasFlags(flags, [FlagsEnum.ACK])) {
+                                    const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
+                                    //Check if RC responded within time limit
+                                    if (handshakeRc) {
+                                        console.log("Remote client accepted initiation of SMMP session")
+                                        let flags : FlagsEnum[] = [FlagsEnum.ACK]
+                                        if (remoteClient.confidentiality) {
+                                            flags.push(FlagsEnum.Confidentiality)
+                                        }
+                                        if (remoteClient.deliveryAck) {
+                                            flags.push(FlagsEnum.DeliveryGuarantee)
+                                        }
+
+                                        let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
+                                        let smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
+                                        const finalPayload = appendMagicWord(smmpPayload)
+                                        let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
+                                        let signedSendMsg = await signMessage(mmtpMsg, false)
+                                        const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+                                        lastSentMessage = signedSendMsg;
+                                        ws.send(toBeSent);
+                                        clearInterval(handshakeRc);
+                                        smmpConnectBtn.textContent = 'Connect SMMP';
+                                        smmpConnectBtn.classList.remove('active');
+                                        smmpConnectBtn.disabled = false;
+                                        ongoingSmmpHandshakes.delete(msg.header.sender)
+                                        showSmmpSessions(remoteClients)
+                                    }
+                                    //Send last ACK
+                                // 1st step handshake
+                                } else {
+                                    const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
+                                    console.log("Remote client wants to initiate SMMP session")
+                                    let flags : FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.ACK]
+                                    if (remoteClient.confidentiality) {
+                                        flags.push(FlagsEnum.Confidentiality)
+                                    }
+                                    if (remoteClient.deliveryAck) {
+                                        flags.push(FlagsEnum.DeliveryGuarantee)
+                                    }
+
+                                    let smmpAckMsg =  getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(certBytes))
+                                    const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
+                                    const finalPayload = appendMagicWord(smmpPayload)
+                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
+                                    let signedSendMsg = await signMessage(mmtpMsg, false)
+                                    const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+                                    lastSentMessage = signedSendMsg;
+                                    ws.send(toBeSent);
+                                    //Send with ACK
+                                }
+                            // Case last part of three-way handshake, i.e. 3rd step of three-way handshake
+                            // This is indicated by the presence of any handshake flag apart from the ACK
+                            } else if (hasFlags(flags, [FlagsEnum.ACK]) &&
+                                hasAnyFlag(flags, [FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee, FlagsEnum.NonRepudiation])) {
+                                console.log("Last part of three-way-handshake ACK - SMMP session is now setup!")
+                                showSmmpSessions(remoteClients)
+
+                            // Case - Reception of an ACK of a received message with delivery guarantee
+                            } else if (hasFlags(flags, [FlagsEnum.ACK])) {
+                                console.log("Msg with delivery guarantee was successfully received ")
+
+                                // Case regular reception of SMMP msg
+                            } else {
+                                //Get the remote client key
+                                const rc = remoteClients.get(msg.header.sender);
+
+                                //Decrypt message
+                                let plaintext = smmpMessage.data
+                                if (rc.confidentiality) {
+                                   plaintext =  await decrypt(rc.symKey, smmpMessage.data);
+                                }
+                                const segmented : boolean = (smmpMessage.header.totalBlocks > 1);
+
+                                if (segmented) {
+                                    await handleSegmentedMessage(smmpMessage.header, plaintext)
+                                    const segMsg = (segmentedMessages.get(smmpMessage.header.uuid)) //undefined treated as false
+                                    const segmentSpan: HTMLSpanElement | null = incomingArea.querySelector('span#newSpan');
+
+                                    if (segmentSpan) {
+                                        segmentSpan.remove()
+                                    } else {
+                                        if (incomingArea.textContent !== '') {
+                                            const lineBreak = document.createElement('br');
+                                            incomingArea.prepend(lineBreak);
+                                        }
+                                    }
+                                    const newSpan = document.createElement("span");
+                                    newSpan.id = "newSpan";
+                                    newSpan.setAttribute("data-toggle", "tooltip");
+                                    newSpan.innerHTML = `<b>Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}</b>`;
+                                    const date = new Date().toString();
+                                    newSpan.title = `${date}`;
+
+                                    incomingArea.prepend(newSpan);
+                                    if (segMsg.receivedBlocks === segMsg.totalBlocks) {
+                                        newSpan.remove()
+                                        msg.body = segMsg.data
+                                        showReceivedMessage(msg, validSignature)
+                                    }
+                                } else {
+                                    //No segmentation so simply display the decrypted message
+                                    console.log("msg bytes: ", plaintext)
+                                    msg.body = plaintext
+                                    showReceivedMessage(msg, validSignature);
+                                }
+                            }
+                        } else {
+                            showReceivedMessage(msg, validSignature);
+                        }
                     }
                 } else if (mmtpMessage.msgType === MsgType.PROTOCOL_MESSAGE && mmtpMessage.protocolMessage?.protocolMsgType === ProtocolMessageType.NOTIFY_MESSAGE) {
                     const notifyMsg = mmtpMessage.protocolMessage.notifyMessage;
@@ -207,9 +385,7 @@ connectBtn.addEventListener("click", async () => {
                             })
                         })
                     });
-
                     msgBlob = MmtpMessage.encode(receive).finish();
-
                     lastSentMessage = receive;
                     ws.send(msgBlob);
                 }
@@ -250,6 +426,28 @@ connectBtn.addEventListener("click", async () => {
     });
 });
 
+
+
+async function isSmmp(msg: IApplicationMessage): Promise<boolean> {
+    if (msg.body.length < 4) { // Out of bounds check for SMMP magic word
+        return false;
+    }
+    // Extract the first four bytes to check
+    const toCheck = msg.body.subarray(0, 4);
+    // Uint8Array with the ASCII values for "SMMP"
+    const magic = new Uint8Array([83, 77, 77, 80]);
+
+    for (let i = 0; i < 4; i++) {
+        if (toCheck[i] !== magic[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+
+let certBytes: ArrayBuffer;
 async function loadCertAndPrivateKeyFromFiles() {
     if (!certFileInput.files.length || !privateKeyFileInput.files.length) {
         alert("Please provide a certificate and private key file")
@@ -257,7 +455,6 @@ async function loadCertAndPrivateKeyFromFiles() {
     }
 
     const certString = await certFileInput.files[0].text();
-    let certBytes: ArrayBuffer;
     if (certString.startsWith("-----BEGIN")) { // Is this PEM encoded?
         certBytes = extractFromPem(certString, "CERTIFICATE");
     } else { // Nope, it is probably just DER encoded then
@@ -273,10 +470,16 @@ async function loadCertAndPrivateKeyFromFiles() {
     }
 
     certificate = Certificate.fromBER(certBytes);
+    console.log("Cert is", certificate)
     privateKey = await crypto.subtle.importKey("pkcs8", privKeyBytes, {
         name: "ECDSA",
         namedCurve: "P-384"
     }, false, ["sign"]);
+    privateKeyEcdh = await crypto.subtle.importKey("pkcs8", privKeyBytes, {
+        name: "ECDH",
+        namedCurve: "P-384"
+    }, false, ["deriveKey"]);
+
 }
 
 function extractFromPem(pemInput: string, inputType: string): ArrayBuffer {
@@ -331,10 +534,24 @@ interface Agent {
     edgeRouter: string,
 }
 
+interface RemoteClient {
+    pubKey : CryptoKey,
+    symKey : CryptoKey,
+    confidentiality : boolean,
+    deliveryAck : boolean,
+    nonRepudiation: boolean,
+}
+
+interface SegmentedMessage {
+    data : Uint8Array
+    receivedBlocks : number
+    totalBlocks : number
+}
+
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
 const subjectRadio = document.getElementById('subject') as HTMLInputElement;
 
-mrnRadio.addEventListener('change', (event) => {
+mrnRadio.addEventListener('change', () => {
     if (mrnRadio.checked) {
         subjectSelect.hidden = true;
         receiverMrnSelect.hidden = false;
@@ -351,14 +568,25 @@ mrnRadio.addEventListener('change', (event) => {
                     receiverMrnSelect.appendChild(mrnOption);
                 }
             }));
+        //Also add active SMMP Clients to the list
+        remoteClients.forEach((rc, mrn) => {
+            const mrnOption = document.createElement("option");
+            mrnOption.value = mrn
+            mrnOption.textContent = mrn
+            receiverMrnSelect.appendChild(mrnOption)
+        })
+
     }
 });
 
-subjectRadio.addEventListener('change', (event) => {
+subjectRadio.addEventListener('change', () => {
     if (subjectRadio.checked) {
         receiverMrnSelect.hidden = true;
         receiverMrnSelect.innerHTML = "<option value=\"\">---Please select an MRN---</option>";
         subjectSelect.hidden = false;
+        sendBtn.style.width = "100vw";
+        sendSmmpBtn.hidden = true;
+        sendBtn.textContent = "Send"
     }
 });
 
@@ -546,14 +774,17 @@ const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the wor
 function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
     const payload = msg.body;
     const decoder = new TextDecoder();
+    const lineBreak = document.createElement('br');
+    console.log(payload.subarray(0, 4))
+
     if (arraysEqual(payload.subarray(0, 4), fileBytesArray)) {
         for (let i = 4; i < payload.length; i++) {
             if (arraysEqual(payload.subarray(i, i + 4), fileBytesArray)) {
                 const fileNameBytes = payload.subarray(4, i);
                 const fileName = decoder.decode(fileNameBytes);
                 const content = payload.subarray(i + 4);
+                let newStr = ""
 
-                incomingArea.append(`${msg.header.sender} sent: `);
                 const downloadLink = document.createElement("a");
                 downloadLink.href = "#";
                 downloadLink.textContent = fileName;
@@ -566,13 +797,35 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
 
                     e.preventDefault();
                 };
-                incomingArea.append(downloadLink);
+                if (incomingArea.textContent !== '') {
+                    incomingArea.prepend(lineBreak);
+                }
+                const textSpan = document.createElement("span");
+                textSpan.setAttribute("data-toggle", "tooltip");
+                textSpan.textContent = `${msg.header.sender} sent: `;
+                const date = Date()
+                textSpan.title = `${date}`
+                incomingArea.prepend(textSpan)
+                textSpan.append(downloadLink);
+                downloadReceivedBtn.onclick = () => {
+                    downloadLink.click();
+                }
+                downloadReceivedBtn.hidden = false
                 break;
             }
         }
     } else {
+        downloadReceivedBtn.hidden = true
         const text = decoder.decode(payload);
-        incomingArea.append(`${msg.header.sender} sent: ${text}`);
+        const textSpan = document.createElement("span");
+        textSpan.setAttribute("data-toggle", "tooltip");
+        textSpan.textContent = `${msg.header.sender} sent: ${text}`;
+        const date = Date()
+        textSpan.title = `${date}`
+        if (incomingArea.textContent !== '') {
+            incomingArea.prepend(lineBreak);
+        }
+        incomingArea.prepend(textSpan)
     }
     if (signatureVerificationResponse.valid) {
         const signatureStatusSpan = document.createElement("span");
@@ -581,9 +834,12 @@ function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResp
         signatureStatusSpan.setAttribute("data-placement", "right");
         signatureStatusSpan.textContent = greenCheckMark;
         signatureStatusSpan.title = `The signature was successfully verified using certificate for ${signatureVerificationResponse.signer} with serial number ${signatureVerificationResponse.serialNumber.toString()}`;
-        incomingArea.append(signatureStatusSpan);
+
+        if (incomingArea.textContent !== '') {
+            incomingArea.prepend(lineBreak);
+        }
+        incomingArea.prepend(signatureStatusSpan);
     }
-    incomingArea.appendChild(document.createElement('br'));
 }
 
 function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -605,7 +861,6 @@ sendBtn.addEventListener("click", async () => {
     if (!mrnRadio.checked && !subjectRadio.checked) {
         alert("You need to choose message type!");
     }
-
     let body: Uint8Array;
     if (encodedFile) {
         body = encodedFile;
@@ -614,6 +869,30 @@ sendBtn.addEventListener("click", async () => {
         const encoder = new TextEncoder();
         body = encoder.encode(text);
     }
+    await sendMsg(body)
+    const oldText = sendBtn.textContent
+    setTimeout(() => {
+        sendBtn.textContent = 'Sent';
+        sendBtn.classList.remove('btn-primary');
+        sendBtn.classList.add('btn-success');
+        sendBtn.disabled = true;
+
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            sendBtn.textContent = oldText;
+            sendBtn.classList.remove('btn-success');
+            sendBtn.classList.add('btn-primary');
+            sendBtn.disabled = false;
+        }, 3000);
+    }, 500);
+    console.log("MSG SENT!")
+    msgArea.value = "";
+    encodedFile = undefined;
+    loadedState.style.display = 'none';
+    unloadedState.style.display = 'block';
+});
+
+async function sendMsg(body : Uint8Array) {
 
     // set expiration to be one hour from now
     const expires = new Date();
@@ -636,53 +915,152 @@ sendBtn.addEventListener("click", async () => {
             })
         })
     });
-
-    let uint8Arrays: Uint8Array[] = [];
-    const encoder = new TextEncoder();
+    let subjectCastMsg : boolean = false
 
     if (mrnRadio.checked) {
         const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
         sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
             recipients: [receiver]
         });
-        uint8Arrays.push(encoder.encode(receiver));
+
     } else if (subjectRadio.checked) {
-        const subject = subjectSelect.options[subjectSelect.selectedIndex].value;
-        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subject;
-        uint8Arrays.push(encoder.encode(subject));
+        sendMsg.protocolMessage.sendMessage.applicationMessage.header.subject = subjectSelect.options[subjectSelect.selectedIndex].value;
+        subjectCastMsg = true
     }
 
-    uint8Arrays.push(encoder.encode(expires.getTime().toString()));
-    uint8Arrays.push(encoder.encode(ownMrn));
-    uint8Arrays.push(encoder.encode(body.length.toString()));
-    uint8Arrays.push(body);
+    let signedSendMsg = await signMessage(sendMsg, subjectCastMsg)
 
-    let length = uint8Arrays.reduce((acc, a) => acc + a.length, 0);
-
-    let bytesToBeSigned = new Uint8Array(length);
-    let offset = 0;
-    for (const array of uint8Arrays) {
-        bytesToBeSigned.set(array, offset);
-        offset += array.length;
-    }
-
-    const signature = new Uint8Array(await crypto.subtle.sign({
-        name: "ECDSA",
-        hash: "SHA-384"
-    }, privateKey, bytesToBeSigned));
-
-    const r = signature.slice(0, signature.length / 2);
-    const s = signature.slice(signature.length / 2, signature.length);
-
-    let sequence = new Sequence();
-    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(r)));
-    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(s)));
-    sendMsg.protocolMessage.sendMessage.applicationMessage.signature = new Uint8Array(sequence.toBER());
-
-    const toBeSent = MmtpMessage.encode(sendMsg).finish();
-    console.log("MMTP message: ", sendMsg);
-    lastSentMessage = sendMsg;
+    const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+    console.log("Sent MMTP message: ", signedSendMsg);
+    lastSentMessage = signedSendMsg;
     ws.send(toBeSent);
+
+}
+
+sendSmmpBtn.addEventListener("click", async () => {
+    const receiverMrn = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
+    const rc = remoteClients.get(receiverMrn)
+
+    //Get the images to be sent
+    let body: Uint8Array;
+    if (encodedFile) {
+        body = encodedFile;
+    } else {
+        const text = msgArea.value;
+        const encoder = new TextEncoder();
+        body = encoder.encode(text);
+    }
+    let flags : FlagsEnum[] = []
+    const smmpUuid = uuidv4()
+    const msgSegments = Math.ceil(body.length / SMMP_SEGMENTATION_THRESHOLD + 1)
+    console.log("MSG SEGMENTS: ", msgSegments)
+    for (let i = 0; i < msgSegments; i++) {
+        const segment = body.subarray(i*SMMP_SEGMENTATION_THRESHOLD, (i+1)*SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
+        console.log("Total segments", msgSegments)
+        console.log("Cur segment", segment)
+        const cipherSegment = await encrypt(rc.symKey, segment)
+            const smmpMessage = getSmmpMessage(flags, i, msgSegments, smmpUuid, new Uint8Array(cipherSegment))
+            console.log(smmpMessage)
+            const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
+            await sendSmmpMsg(smmpPayload)
+        }
+
+    setTimeout(() => {
+        sendSmmpBtn.textContent = 'Sent';
+        sendSmmpBtn.classList.remove('btn-warning');
+        sendSmmpBtn.classList.add('btn-success');
+        sendSmmpBtn.disabled = true;
+
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            sendSmmpBtn.textContent = 'Send SMMP';
+            sendSmmpBtn.classList.remove('btn-success');
+            sendSmmpBtn.classList.add('btn-warning');
+            sendSmmpBtn.disabled = false;
+        }, 3000);
+    }, 500);
+});
+
+//Caller should pass the smmp payload as argument to this function
+async function sendSmmpMsg(body : Uint8Array) {
+    const dataPayload = appendMagicWord(body)
+    await sendMsg(dataPayload)
+}
+
+downloadReceivedBtn.addEventListener('click', async() => {
+    setTimeout(() => {
+        downloadReceivedBtn.textContent = 'Downloading...';
+        downloadReceivedBtn.classList.add('active')
+        downloadReceivedBtn.disabled = true;
+
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            downloadReceivedBtn.textContent = 'Download';
+            downloadReceivedBtn.classList.remove('active');
+            downloadReceivedBtn.disabled = false;
+        }, 3000);
+    }, 500);
+})
+
+//If SMMP is established with receiver, the user can choose to send message as either MMTP or SMMP
+receiverMrnSelect.addEventListener("change", async () => {
+    if (remoteClients.has(mrnRadio.checked && receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value)) {
+        sendBtn.style.width = "0.5";
+        sendBtn.textContent = "Send MMTP";
+        sendBtn.style.display = "inline-block";
+        sendSmmpBtn.style.width = "0.5";
+        sendSmmpBtn.hidden = false;
+        sendSmmpBtn.style.display = "inline-block";
+    } else {
+        sendBtn.style.width = "100vw";
+        sendSmmpBtn.hidden = true;
+        sendBtn.textContent = "Send"
+    }
+})
+
+smmpConnectBtn.addEventListener("click", async () => {
+    const rcClientMrn = document.getElementById("rcClientMrn") as HTMLInputElement
+    console.log(rcClientMrn.value)
+
+    setTimeout(() => {
+        smmpConnectBtn.textContent = 'Awaiting Remote Client...';
+        smmpConnectBtn.classList.add('active')
+        smmpConnectBtn.disabled = true;
+    }, 500);
+
+    let smmpMsg = getSmmpHandshakeMessage()
+    const smmpPayload = SmmpMessage.encode(smmpMsg).finish()
+    const finalPayload = appendMagicWord(smmpPayload)
+    let mmtpMsg = getMmtpSendMrnMsg(rcClientMrn.value, finalPayload)
+
+    let signedSendMsg = await signMessage(mmtpMsg, false)
+
+    const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+    console.log("MMTP message: ", signedSendMsg);
+    lastSentMessage = signedSendMsg;
+    ws.send(toBeSent);
+
+    //Button countdown
+    let count = 15
+    const countdownInterval = setInterval(() => {
+        smmpConnectBtn.textContent = `Awaiting Remote Client...${count}`;
+        count--;
+
+        // When the countdown reaches 0, stop the interval and update the button text
+        if (count< 0) {
+            clearInterval(countdownInterval);
+            smmpConnectBtn.textContent = 'No response received';
+            setTimeout(() => {
+                smmpConnectBtn.textContent = 'Connect SMMP';
+                smmpConnectBtn.classList.remove('active');
+                smmpConnectBtn.disabled = false;
+                ongoingSmmpHandshakes.delete(rcClientMrn.value)
+            }, 2000);
+        }
+    }, 1000); // 1000 milliseconds = 1 second
+    ongoingSmmpHandshakes.set(rcClientMrn.value, countdownInterval)
+
+    console.log("MSG SENT!")
 
     msgArea.value = "";
     encodedFile = undefined;
@@ -690,8 +1068,20 @@ sendBtn.addEventListener("click", async () => {
     unloadedState.style.display = 'block';
 });
 
+
+//Message receive
 const receiveBtn = document.getElementById("receiveBtn") as HTMLButtonElement;
 receiveBtn.addEventListener("click", () => {
+    setTimeout(() => {
+        receiveBtn.textContent = 'Receiving...';
+        receiveBtn.classList.add('active');
+        receiveBtn.disabled = true;
+        setTimeout(() => {
+            receiveBtn.textContent = "Receive Messages";
+            receiveBtn.classList.remove('active');
+            receiveBtn.disabled = false;
+        }, 3000);
+    }, 500);
     const receive = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
         uuid: uuidv4(),
@@ -717,7 +1107,6 @@ const fileInput = document.getElementById('fileInput');
 fileInput.addEventListener("change", handleFiles, false);
 
 function handleFiles() {
-    const fileList = this.files; /* now you can work with the file list */
 
     const file: File = this.files[0];
     if (file) {
@@ -729,12 +1118,323 @@ function handleFiles() {
             loadedState.style.display = 'block';
             unloadedState.style.display = 'none';
         });
-        console.log("call finished");
     }
 }
+
+//-------------Definition of SMMP guarantees---------------
+enum FlagsEnum {
+    Handshake = 1 << 0,         // H (bit value 1)
+    ACK = 1 << 1,               // A (bit value 2)
+    Confidentiality = 1 << 2,   // C (bit value 4)
+    DeliveryGuarantee = 1 << 3, // D (bit value 8)
+    NonRepudiation = 1 << 4     // N (bit value 16)
+}
+
+function setFlags(flags: FlagsEnum[]) : number {
+    let result = 0
+    for (const flag of flags) {
+        result |= flag;
+    }
+    return result;
+}
+
+function hasFlags(val : number, flags : FlagsEnum[]) : boolean {
+    for (const flag  of flags) {
+        if ((val&flag) === 0) {
+            return false
+        }
+    }
+    return true
+}
+
+function hasAnyFlag(val : number, flags : FlagsEnum[]) : boolean {
+    for (const flag  of flags) {
+        if ((val&flag) !== 0) {
+            return true
+        }
+    }
+    return false
+}
+
+function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + 3_600_000);
+
+    const sendMsg = MmtpMessage.create({
+        msgType: MsgType.PROTOCOL_MESSAGE,
+        uuid: uuidv4(),
+        protocolMessage: ProtocolMessage.create({
+            protocolMsgType: ProtocolMessageType.SEND_MESSAGE,
+            sendMessage: Send.create({
+                applicationMessage: ApplicationMessage.create({
+                    header: ApplicationMessageHeader.create({
+                        expires: expires.getTime(),
+                        sender: ownMrn,
+                        bodySizeNumBytes: body.length,
+                    }),
+                    body: body,
+                })
+            })
+        })
+    });
+    sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
+        recipients: [recipientMrn]
+    });
+
+    return sendMsg
+}
+
+function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number, smmpUuid : string, smmpData : Uint8Array) {
+    let controlBits = setFlags(flags)
+
+    //Due to an unsafe cast in the Go Implementation - TODO: This needs to be changed in both implementations
+    const arr = new Uint8Array(1)
+    arr[0] = controlBits
+    console.log(arr.toString())
+
+    return SmmpMessage.create({
+        header: SmmpHeader.create({
+            control : arr,
+            blockNum : blcNum,
+            totalBlocks : totalBlcs,
+            payloadLen : smmpData.length,
+            uuid : smmpUuid
+        }),
+        data : smmpData
+    })
+}
+
+function getSmmpHandshakeMessage() {
+    const flags : FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee]
+    //Get the signing certificate
+    return getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(certBytes))
+}
+
+
+async function signMessage(msg : MmtpMessage, subject : boolean) {
+    const appMsgHeader = msg.protocolMessage.sendMessage.applicationMessage.header
+    const appMsg = msg.protocolMessage.sendMessage.applicationMessage
+
+    let uint8Arrays: Uint8Array[] = [];
+    const encoder = new TextEncoder();
+
+    console.log("Send to ", appMsgHeader.recipients.recipients[0])
+
+    if (subject) {
+        uint8Arrays.push(encoder.encode(appMsgHeader.subject));
+    } else {
+        uint8Arrays.push(encoder.encode(appMsgHeader.recipients.recipients[0]));
+    }
+
+    uint8Arrays.push(encoder.encode(appMsgHeader.expires.toString()));
+    uint8Arrays.push(encoder.encode(ownMrn));
+    uint8Arrays.push(encoder.encode(appMsg.body.length.toString()));
+    uint8Arrays.push(appMsg.body);
+
+    let length = uint8Arrays.reduce((acc, a) => acc + a.length, 0);
+
+    let bytesToBeSigned = new Uint8Array(length);
+    let offset = 0;
+    for (const array of uint8Arrays) {
+        bytesToBeSigned.set(array, offset);
+        offset += array.length;
+    }
+
+    const signature = new Uint8Array(await crypto.subtle.sign({
+        name: "ECDSA",
+        hash: "SHA-384"
+    }, privateKey, bytesToBeSigned));
+
+    const r = signature.slice(0, signature.length / 2);
+    const s = signature.slice(signature.length / 2, signature.length);
+
+    let sequence = new Sequence();
+    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(r)));
+    sequence.valueBlock.value.push(Integer.fromBigInt(bufToBigint(s)));
+    msg.protocolMessage.sendMessage.applicationMessage.signature = new Uint8Array(sequence.toBER());
+
+    return msg
+}
+
+//Factory Function to create a new RemoteClient
+const createRemoteClient = (pk: CryptoKey, sk: CryptoKey, conf: boolean, dAck: boolean): RemoteClient => {
+    return {
+        pubKey: pk,
+        symKey: sk,
+        confidentiality: conf,
+        deliveryAck: dAck,
+        nonRepudiation: false,
+    };
+};
+
+const createSegmentedMessage = (rb : number, tb : number, maxBlockSize : number): SegmentedMessage => {
+    return {
+        receivedBlocks : rb,
+        totalBlocks : tb,
+        data : new Uint8Array(tb * maxBlockSize)
+    };
+};
 
 const loadedState = document.getElementById('file-state-loaded');
 const unloadedState = document.getElementById('file-state-unloaded');
 
 loadedState.style.display = 'none';
 unloadedState.style.display = 'block';
+
+//Derives a shared AES-CTR 256-bit key for session confidentiality
+async function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
+    const privateKeyAlgorithm = privateKey.algorithm;
+    const publicKeyAlgorithm = publicKey.algorithm;
+
+    if (privateKeyAlgorithm.name !== 'ECDH') {
+        throw new Error('Private key must be an ECDH key with P-384 curve');
+    }
+
+    if (publicKeyAlgorithm.name !== 'ECDH') {
+        throw new Error('Public key must be an ECDH key with P-384 curve');
+    }
+
+    return await window.crypto.subtle.deriveKey(
+        {
+            name: "ECDH",
+            public: publicKey,
+        },
+        privateKey,
+        {
+            name: "AES-CTR",
+            length: 256,
+        },
+        true,
+        ["encrypt", "decrypt"],
+    );
+}
+
+//Inspired from https://github.com/mdn/dom-examples/blob/main/web-crypto/derive-key/ecdh.js
+//Note from  NIST SP800-38A standard the max number of blocks MAY NOT EXCEED 2^64
+async function encrypt(secretKey : CryptoKey, data : Uint8Array) {
+    let iv = window.crypto.getRandomValues(new Uint8Array(16));
+    let ciphertext = await crypto.subtle.encrypt(
+    {
+        name: "AES-CTR",
+        counter: iv,
+        length: 64 //The length that should be incremented
+        },
+        secretKey,
+        data,
+    )
+    //Regarding counter, The rightmost length bits of this block are used for the counter, and the rest is used for the nonce. For example, if length is set to 64, then the first half of counter is the nonce and the second half is used for the counter.
+    // Convert ciphertext to Uint8Array and prepend the IV
+    let ciphertextArray = new Uint8Array(ciphertext);
+    let result = new Uint8Array(iv.length + ciphertextArray.length);
+    result.set(iv);
+    result.set(ciphertextArray, iv.length);
+
+    return result;
+}
+
+async function decrypt(secretKey : CryptoKey, data : Uint8Array) {
+    // Extract the IV from the beginning of the data
+    let iv = data.slice(0, 16);
+    let ciphertext = data.slice(16);
+
+    // Decrypt the data using AES-CTR
+    let decrypted = await window.crypto.subtle.decrypt(
+        {
+            name: "AES-CTR",
+            counter: iv,
+            length: 64, // The rightmost 64 bits are used for the counter
+        },
+        secretKey,
+        ciphertext
+    );
+    return new Uint8Array(decrypted);
+}
+
+function appendMagicWord(smmpPayload : Uint8Array) : Uint8Array {
+    const magic = new Uint8Array([83, 77, 77, 80]);
+    const finalPayload = new Uint8Array(magic.length + smmpPayload.length)
+    finalPayload.set(magic, 0);
+    finalPayload.set(smmpPayload, magic.length);
+    return finalPayload
+}
+
+function showSmmpSessions(sessions : Map<string,RemoteClient>) {
+    const activeSmmpSessionsDiv = document.getElementById('activeSmmpSessions');
+    activeSmmpSessionsDiv.innerHTML = ''; // Clear existing images
+
+    if (sessions.size > 0) {
+        const ul = document.createElement('ul');
+        ul.classList.add('list-group');
+
+        sessions.forEach((rc, mrn) => {
+            const li = document.createElement('li');
+            li.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+
+            // Create a div for the MRN span to keep it left-aligned
+            const mrnDiv = document.createElement('div');
+            const mrnSpan = document.createElement('span');
+            mrnSpan.textContent = `${mrn}`;
+            mrnDiv.appendChild(mrnSpan);
+            li.appendChild(mrnDiv);
+
+            // Create a div for the boolean values to keep them right-aligned
+            const boolDiv = document.createElement('div');
+            boolDiv.classList.add('d-flex', 'flex-grow-1', 'justify-content-end');
+
+            const confSpan = document.createElement('span');
+            confSpan.textContent = `C: ${rc.confidentiality}`;
+            confSpan.classList.add('mx-1')
+            boolDiv.appendChild(confSpan);
+
+            const deliverySpan = document.createElement('span');
+            deliverySpan.textContent = `D: ${rc.deliveryAck}`;
+            deliverySpan.classList.add('mx-1')
+            boolDiv.appendChild(deliverySpan);
+
+            const nonrepudiationSpan = document.createElement('span');
+            nonrepudiationSpan.textContent = `N: ${rc.nonRepudiation}`;
+            nonrepudiationSpan.classList.add('mx-1')
+            boolDiv.appendChild(nonrepudiationSpan);
+
+
+            li.appendChild(boolDiv);
+
+            const endDiv = document.createElement('div');
+            endDiv.classList.add('ml-auto');
+            const endSessionBtn = document.createElement('button');
+            endSessionBtn.classList.add('btn', 'btn-danger', 'btn-sm')
+            endSessionBtn.textContent = 'x'
+            endSessionBtn.addEventListener('click', async () => {
+                //TODO Send SMMP Close segment once defined in the protocol
+                remoteClients.delete(mrn)
+                endSessionBtn.disabled = true
+                endSessionBtn.classList.add('active')
+                setTimeout(() => {
+                   li.remove()
+                }, 2000);
+
+            })
+
+            endDiv.appendChild(endSessionBtn)
+
+            li.appendChild(endDiv)
+
+            // Append the list item to the list
+            ul.appendChild(li);
+        });
+        activeSmmpSessionsDiv.appendChild(ul);
+        activeSmmpSessionsDiv.hidden = false;
+    }
+}
+
+async function handleSegmentedMessage(header : ISmmpHeader, plaintext : Uint8Array) {
+    //If no entry exists, create one
+    let segmentedMsg = segmentedMessages.get(header.uuid);
+    if (!segmentedMsg) {
+        segmentedMsg = createSegmentedMessage(0, header.totalBlocks, SMMP_SEGMENTATION_THRESHOLD)
+        segmentedMessages.set(header.uuid, segmentedMsg)
+    }
+    segmentedMsg.receivedBlocks++
+    segmentedMsg.data.set(plaintext, header.blockNum * SMMP_SEGMENTATION_THRESHOLD)
+}
+

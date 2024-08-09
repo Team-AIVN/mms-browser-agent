@@ -3,9 +3,6 @@ import Long = require("long");
 /** Properties of a SmmpHeader. */
 export interface ISmmpHeader {
 
-    /** SmmpHeader magic */
-    magic?: (number|null);
-
     /** SmmpHeader control */
     control?: (Uint8Array|null);
 
@@ -20,6 +17,9 @@ export interface ISmmpHeader {
 
     /** SmmpHeader uuid */
     uuid?: (string|null);
+
+    /** SmmpHeader curves */
+    curves?: (Curve[]|null);
 }
 
 /** Represents a SmmpHeader. */
@@ -31,9 +31,6 @@ export class SmmpHeader implements ISmmpHeader {
      */
     constructor(properties?: ISmmpHeader);
 
-    /** SmmpHeader magic. */
-    public magic: number;
-
     /** SmmpHeader control. */
     public control: Uint8Array;
 
@@ -41,13 +38,22 @@ export class SmmpHeader implements ISmmpHeader {
     public payloadLen: number;
 
     /** SmmpHeader blockNum. */
-    public blockNum: number;
+    public blockNum?: (number|null);
 
     /** SmmpHeader totalBlocks. */
-    public totalBlocks: number;
+    public totalBlocks?: (number|null);
 
     /** SmmpHeader uuid. */
     public uuid: string;
+
+    /** SmmpHeader curves. */
+    public curves: Curve[];
+
+    /** SmmpHeader _blockNum. */
+    public _blockNum?: "blockNum";
+
+    /** SmmpHeader _totalBlocks. */
+    public _totalBlocks?: "totalBlocks";
 
     /**
      * Creates a new SmmpHeader instance using the specified properties.
@@ -127,14 +133,11 @@ export class SmmpHeader implements ISmmpHeader {
     public static getTypeUrl(typeUrlPrefix?: string): string;
 }
 
-/** Properties of a SmmpMessage. */
-export interface ISmmpMessage {
-
-    /** SmmpMessage header */
-    header?: (ISmmpHeader|null);
-
-    /** SmmpMessage data */
-    data?: (Uint8Array|null);
+/** Curve enum. */
+export enum Curve {
+    unspecified = 0,
+    secp256r1 = 1,
+    secp384r1 = 2
 }
 
 /** Represents a SmmpMessage. */

@@ -24,6 +24,7 @@
     "style-loader": "^4.0.0",
     "ts-loader": "^9.4.4",
     "typescript": "^5.5.4",
+    "url-loader": "^4.1.1",
     "webpack": "^5.93.0",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.0.2",
@@ -34,10 +35,13 @@
     "asn1js": "^3.0.5",
     "bigint-conversion": "^2.4.3",
     "bootstrap": "^5.3.2",
+    "buffer": "^6.0.3",
     "jquery": "^3.7.1",
     "long": "^5.2.3",
+    "path-browserify": "^1.0.1",
     "pkijs": "^3.2.4",
     "protobufjs": "^7.2.6",
+    "stream-browserify": "^3.0.0",
     "uuid": "^10.0.0"
   }
 }

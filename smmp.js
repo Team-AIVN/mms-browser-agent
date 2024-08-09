@@ -11,38 +11,31 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
 
     /**
      * Properties of a SmmpHeader.
-     * @name ISmmpHeader
+     * @exports ISmmpHeader
      * @interface ISmmpHeader
-     * @property {number|null} [magic] SmmpHeader magic
      * @property {Uint8Array|null} [control] SmmpHeader control
      * @property {number|null} [payloadLen] SmmpHeader payloadLen
      * @property {number|null} [blockNum] SmmpHeader blockNum
      * @property {number|null} [totalBlocks] SmmpHeader totalBlocks
      * @property {string|null} [uuid] SmmpHeader uuid
+     * @property {Array.<Curve>|null} [curves] SmmpHeader curves
      */
 
     /**
      * Constructs a new SmmpHeader.
-     * @name SmmpHeader
+     * @exports SmmpHeader
      * @classdesc Represents a SmmpHeader.
      * @implements ISmmpHeader
      * @constructor
      * @param {ISmmpHeader=} [properties] Properties to set
      */
     function SmmpHeader(properties) {
+        this.curves = [];
         if (properties)
             for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                 if (properties[keys[i]] != null)
                     this[keys[i]] = properties[keys[i]];
     }
-
-    /**
-     * SmmpHeader magic.
-     * @member {number} magic
-     * @memberof SmmpHeader
-     * @instance
-     */
-    SmmpHeader.prototype.magic = 0;
 
     /**
      * SmmpHeader control.
@@ -62,19 +55,19 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
 
     /**
      * SmmpHeader blockNum.
-     * @member {number} blockNum
+     * @member {number|null|undefined} blockNum
      * @memberof SmmpHeader
      * @instance
      */
-    SmmpHeader.prototype.blockNum = 0;
+    SmmpHeader.prototype.blockNum = null;
 
     /**
      * SmmpHeader totalBlocks.
-     * @member {number} totalBlocks
+     * @member {number|null|undefined} totalBlocks
      * @memberof SmmpHeader
      * @instance
      */
-    SmmpHeader.prototype.totalBlocks = 0;
+    SmmpHeader.prototype.totalBlocks = null;
 
     /**
      * SmmpHeader uuid.
@@ -83,6 +76,39 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
      * @instance
      */
     SmmpHeader.prototype.uuid = "";
+
+    /**
+     * SmmpHeader curves.
+     * @member {Array.<Curve>} curves
+     * @memberof SmmpHeader
+     * @instance
+     */
+    SmmpHeader.prototype.curves = $util.emptyArray;
+
+    // OneOf field names bound to virtual getters and setters
+    let $oneOfFields;
+
+    /**
+     * SmmpHeader _blockNum.
+     * @member {"blockNum"|undefined} _blockNum
+     * @memberof SmmpHeader
+     * @instance
+     */
+    Object.defineProperty(SmmpHeader.prototype, "_blockNum", {
+        get: $util.oneOfGetter($oneOfFields = ["blockNum"]),
+        set: $util.oneOfSetter($oneOfFields)
+    });
+
+    /**
+     * SmmpHeader _totalBlocks.
+     * @member {"totalBlocks"|undefined} _totalBlocks
+     * @memberof SmmpHeader
+     * @instance
+     */
+    Object.defineProperty(SmmpHeader.prototype, "_totalBlocks", {
+        get: $util.oneOfGetter($oneOfFields = ["totalBlocks"]),
+        set: $util.oneOfSetter($oneOfFields)
+    });
 
     /**
      * Creates a new SmmpHeader instance using the specified properties.
@@ -108,8 +134,6 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
     SmmpHeader.encode = function encode(message, writer) {
         if (!writer)
             writer = $Writer.create();
-        if (message.magic != null && Object.hasOwnProperty.call(message, "magic"))
-            writer.uint32(/* id 1, wireType 0 =*/8).int32(message.magic);
         if (message.control != null && Object.hasOwnProperty.call(message, "control"))
             writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.control);
         if (message.payloadLen != null && Object.hasOwnProperty.call(message, "payloadLen"))
@@ -120,6 +144,12 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
             writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.totalBlocks);
         if (message.uuid != null && Object.hasOwnProperty.call(message, "uuid"))
             writer.uint32(/* id 6, wireType 2 =*/50).string(message.uuid);
+        if (message.curves != null && message.curves.length) {
+            writer.uint32(/* id 7, wireType 2 =*/58).fork();
+            for (let i = 0; i < message.curves.length; ++i)
+                writer.int32(message.curves[i]);
+            writer.ldelim();
+        }
         return writer;
     };
 
@@ -154,10 +184,6 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
         while (reader.pos < end) {
             let tag = reader.uint32();
             switch (tag >>> 3) {
-            case 1: {
-                    message.magic = reader.int32();
-                    break;
-                }
             case 2: {
                     message.control = reader.bytes();
                     break;
@@ -176,6 +202,17 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
                 }
             case 6: {
                     message.uuid = reader.string();
+                    break;
+                }
+            case 7: {
+                    if (!(message.curves && message.curves.length))
+                        message.curves = [];
+                    if ((tag & 7) === 2) {
+                        let end2 = reader.uint32() + reader.pos;
+                        while (reader.pos < end2)
+                            message.curves.push(reader.int32());
+                    } else
+                        message.curves.push(reader.int32());
                     break;
                 }
             default:
@@ -213,24 +250,39 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
     SmmpHeader.verify = function verify(message) {
         if (typeof message !== "object" || message === null)
             return "object expected";
-        if (message.magic != null && message.hasOwnProperty("magic"))
-            if (!$util.isInteger(message.magic))
-                return "magic: integer expected";
+        let properties = {};
         if (message.control != null && message.hasOwnProperty("control"))
             if (!(message.control && typeof message.control.length === "number" || $util.isString(message.control)))
                 return "control: buffer expected";
         if (message.payloadLen != null && message.hasOwnProperty("payloadLen"))
             if (!$util.isInteger(message.payloadLen))
                 return "payloadLen: integer expected";
-        if (message.blockNum != null && message.hasOwnProperty("blockNum"))
+        if (message.blockNum != null && message.hasOwnProperty("blockNum")) {
+            properties._blockNum = 1;
             if (!$util.isInteger(message.blockNum))
                 return "blockNum: integer expected";
-        if (message.totalBlocks != null && message.hasOwnProperty("totalBlocks"))
+        }
+        if (message.totalBlocks != null && message.hasOwnProperty("totalBlocks")) {
+            properties._totalBlocks = 1;
             if (!$util.isInteger(message.totalBlocks))
                 return "totalBlocks: integer expected";
+        }
         if (message.uuid != null && message.hasOwnProperty("uuid"))
             if (!$util.isString(message.uuid))
                 return "uuid: string expected";
+        if (message.curves != null && message.hasOwnProperty("curves")) {
+            if (!Array.isArray(message.curves))
+                return "curves: array expected";
+            for (let i = 0; i < message.curves.length; ++i)
+                switch (message.curves[i]) {
+                default:
+                    return "curves: enum value[] expected";
+                case 0:
+                case 1:
+                case 2:
+                    break;
+                }
+        }
         return null;
     };
 
@@ -246,8 +298,6 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
         if (object instanceof $root.SmmpHeader)
             return object;
         let message = new $root.SmmpHeader();
-        if (object.magic != null)
-            message.magic = object.magic | 0;
         if (object.control != null)
             if (typeof object.control === "string")
                 $util.base64.decode(object.control, message.control = $util.newBuffer($util.base64.length(object.control)), 0);
@@ -261,6 +311,31 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
             message.totalBlocks = object.totalBlocks >>> 0;
         if (object.uuid != null)
             message.uuid = String(object.uuid);
+        if (object.curves) {
+            if (!Array.isArray(object.curves))
+                throw TypeError(".SmmpHeader.curves: array expected");
+            message.curves = [];
+            for (let i = 0; i < object.curves.length; ++i)
+                switch (object.curves[i]) {
+                default:
+                    if (typeof object.curves[i] === "number") {
+                        message.curves[i] = object.curves[i];
+                        break;
+                    }
+                case "unspecified":
+                case 0:
+                    message.curves[i] = 0;
+                    break;
+                case "secp256r1":
+                case 1:
+                    message.curves[i] = 1;
+                    break;
+                case "secp384r1":
+                case 2:
+                    message.curves[i] = 2;
+                    break;
+                }
+        }
         return message;
     };
 
@@ -277,8 +352,9 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
         if (!options)
             options = {};
         let object = {};
+        if (options.arrays || options.defaults)
+            object.curves = [];
         if (options.defaults) {
-            object.magic = 0;
             if (options.bytes === String)
                 object.control = "";
             else {
@@ -287,22 +363,29 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
                     object.control = $util.newBuffer(object.control);
             }
             object.payloadLen = 0;
-            object.blockNum = 0;
-            object.totalBlocks = 0;
             object.uuid = "";
         }
-        if (message.magic != null && message.hasOwnProperty("magic"))
-            object.magic = message.magic;
         if (message.control != null && message.hasOwnProperty("control"))
             object.control = options.bytes === String ? $util.base64.encode(message.control, 0, message.control.length) : options.bytes === Array ? Array.prototype.slice.call(message.control) : message.control;
         if (message.payloadLen != null && message.hasOwnProperty("payloadLen"))
             object.payloadLen = message.payloadLen;
-        if (message.blockNum != null && message.hasOwnProperty("blockNum"))
+        if (message.blockNum != null && message.hasOwnProperty("blockNum")) {
             object.blockNum = message.blockNum;
-        if (message.totalBlocks != null && message.hasOwnProperty("totalBlocks"))
+            if (options.oneofs)
+                object._blockNum = "blockNum";
+        }
+        if (message.totalBlocks != null && message.hasOwnProperty("totalBlocks")) {
             object.totalBlocks = message.totalBlocks;
+            if (options.oneofs)
+                object._totalBlocks = "totalBlocks";
+        }
         if (message.uuid != null && message.hasOwnProperty("uuid"))
             object.uuid = message.uuid;
+        if (message.curves && message.curves.length) {
+            object.curves = [];
+            for (let j = 0; j < message.curves.length; ++j)
+                object.curves[j] = options.enums === String ? $root.Curve[message.curves[j]] === undefined ? message.curves[j] : $root.Curve[message.curves[j]] : message.curves[j];
+        }
         return object;
     };
 
@@ -335,11 +418,27 @@ export const SmmpHeader = $root.SmmpHeader = (() => {
     return SmmpHeader;
 })();
 
+/**
+ * Curve enum.
+ * @exports Curve
+ * @enum {number}
+ * @property {number} unspecified=0 unspecified value
+ * @property {number} secp256r1=1 secp256r1 value
+ * @property {number} secp384r1=2 secp384r1 value
+ */
+export const Curve = $root.Curve = (() => {
+    const valuesById = {}, values = Object.create(valuesById);
+    values[valuesById[0] = "unspecified"] = 0;
+    values[valuesById[1] = "secp256r1"] = 1;
+    values[valuesById[2] = "secp384r1"] = 2;
+    return values;
+})();
+
 export const SmmpMessage = $root.SmmpMessage = (() => {
 
     /**
      * Properties of a SmmpMessage.
-     * @name ISmmpMessage
+     * @exports ISmmpMessage
      * @interface ISmmpMessage
      * @property {ISmmpHeader|null} [header] SmmpMessage header
      * @property {Uint8Array|null} [data] SmmpMessage data
@@ -347,7 +446,7 @@ export const SmmpMessage = $root.SmmpMessage = (() => {
 
     /**
      * Constructs a new SmmpMessage.
-     * @name SmmpMessage
+     * @exports SmmpMessage
      * @classdesc Represents a SmmpMessage.
      * @implements ISmmpMessage
      * @constructor
