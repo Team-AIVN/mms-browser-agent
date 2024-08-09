@@ -952,11 +952,13 @@ sendSmmpBtn.addEventListener("click", async () => {
     }
     let flags : FlagsEnum[] = []
     const smmpUuid = uuidv4()
-    const msgSegments = body.length / SMMP_SEGMENTATION_THRESHOLD + 1
+    const msgSegments = Math.ceil(body.length / SMMP_SEGMENTATION_THRESHOLD + 1)
     console.log("MSG SEGMENTS: ", msgSegments)
     for (let i = 0; i < msgSegments; i++) {
-            const segment = body.subarray(i*SMMP_SEGMENTATION_THRESHOLD, (i+1)*SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
-            const cipherSegment = await encrypt(rc.symKey, segment)
+        const segment = body.subarray(i*SMMP_SEGMENTATION_THRESHOLD, (i+1)*SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
+        console.log("Total segments", msgSegments)
+        console.log("Cur segment", segment)
+        const cipherSegment = await encrypt(rc.symKey, segment)
             const smmpMessage = getSmmpMessage(flags, i, msgSegments, smmpUuid, new Uint8Array(cipherSegment))
             console.log(smmpMessage)
             const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
