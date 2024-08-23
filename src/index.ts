@@ -565,8 +565,23 @@ mrnRadio.addEventListener('change', () => {
                     const mrnOption = document.createElement("option");
                     mrnOption.value = agent.mrn;
                     mrnOption.textContent = agent.mrn;
-                    receiverMrnSelect.appendChild(mrnOption);
+                    receiverMrnSelect.add(mrnOption);
                 }
+                console.log("Select is is: ", receiverMrnSelect)
+                console.log("Select has options", receiverMrnSelect.options)
+                remoteClients.forEach((rc, mrn) => {
+
+                    //Check against existing from DOM model
+                    console.log("Checking if elem already exists", mrn)
+                    console.log("Compare with num options", receiverMrnSelect.options.length)
+                    if (!mrnOptionExists(mrn, receiverMrnSelect)) {
+                        console.log("Did not already exists")
+                        const mrnOption = document.createElement("option");
+                        mrnOption.value = mrn;
+                        mrnOption.textContent = mrn;
+                        receiverMrnSelect.add(mrnOption);
+                    }
+                })
             }));
         //Also add active SMMP Clients to the list
         remoteClients.forEach((rc, mrn) => {
@@ -578,6 +593,19 @@ mrnRadio.addEventListener('change', () => {
 
     }
 });
+
+function mrnOptionExists(mrn : string, selectElem : HTMLSelectElement) {
+    for (const option of selectElem.options) {
+        console.log("Compare to ", option.value)
+        if (option.value === mrn) {
+            console.log("RETURN TRUE")
+            return true
+        }
+    }
+    return false
+}
+
+
 
 subjectRadio.addEventListener('change', () => {
     if (subjectRadio.checked) {
