@@ -1246,8 +1246,6 @@ async function signMessage(msg : MmtpMessage, subject : boolean) {
     let uint8Arrays: Uint8Array[] = [];
     const encoder = new TextEncoder();
 
-    console.log("Send to ", appMsgHeader.recipients.recipients[0])
-
     if (subject) {
         uint8Arrays.push(encoder.encode(appMsgHeader.subject));
     } else {
