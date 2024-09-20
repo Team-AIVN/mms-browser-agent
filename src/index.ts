@@ -522,6 +522,10 @@ const possibleSubscriptions: Subject[] = [
         name: "NW from Australia"
     },
     {
+        value: "s124",
+        name: "S124",
+    },
+    {
         value: "s125",
         name: "S125",
     }
@@ -561,7 +565,8 @@ mrnRadio.addEventListener('change', () => {
         })
             .then(resp => resp.json())
             .then((resp: Agent[]) => resp.forEach(agent => {
-                if (agent.mrn !== ownMrn) {
+                console.log("Resp has length", resp.length)
+                if (agent.mrn !== ownMrn && !mrnOptionExists(agent.mrn, receiverMrnSelect)) {
                     const mrnOption = document.createElement("option");
                     mrnOption.value = agent.mrn;
                     mrnOption.textContent = agent.mrn;
@@ -583,13 +588,8 @@ mrnRadio.addEventListener('change', () => {
                     }
                 })
             }));
-        //Also add active SMMP Clients to the list
-        remoteClients.forEach((rc, mrn) => {
-            const mrnOption = document.createElement("option");
-            mrnOption.value = mrn
-            mrnOption.textContent = mrn
-            receiverMrnSelect.appendChild(mrnOption)
-        })
+        //Also add active SMMP Clients to the list - but only if not already there
+
 
     }
 });
@@ -1403,7 +1403,7 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
             mrnDiv.appendChild(mrnSpan);
             li.appendChild(mrnDiv);
 
-            // Create a div for the boolean values to keep them right-aligned
+            // Create a div for the boolean values to keep th<em right-aligned
             const boolDiv = document.createElement('div');
             boolDiv.classList.add('d-flex', 'flex-grow-1', 'justify-content-end');
 
