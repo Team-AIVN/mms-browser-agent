@@ -522,11 +522,11 @@ const possibleSubscriptions: Subject[] = [
         name: "NW from Australia"
     },
     {
-        value: "s124",
+        value: "s-124",
         name: "S124",
     },
     {
-        value: "s125",
+        value: "s-125",
         name: "S125",
     }
 ];
