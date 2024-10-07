@@ -924,7 +924,7 @@ async function sendMsg(body : Uint8Array) {
 
     // set expiration to be one hour from now
     const expires = new Date();
-    expires.setTime((expires.getTime() + 3_600_000) / 1000);
+    expires.setTime(Math.floor((expires.getTime() + 3_600_000) / 1000));
 
     const sendMsg = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
@@ -934,7 +934,7 @@ async function sendMsg(body : Uint8Array) {
             sendMessage: Send.create({
                 applicationMessage: ApplicationMessage.create({
                     header: ApplicationMessageHeader.create({
-                        expires: expires.getTime() / 1000,
+                        expires: Math.floor(expires.getTime() / 1000),
                         sender: ownMrn,
                         bodySizeNumBytes: body.length,
                     }),
@@ -1186,7 +1186,7 @@ function hasAnyFlag(val : number, flags : FlagsEnum[]) : boolean {
 
 function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
     const expires = new Date();
-    expires.setTime((expires.getTime() + 3_600_000) / 1000);
+    expires.setTime(Math.floor((expires.getTime() + 3_600_000) / 1000));
 
     const sendMsg = MmtpMessage.create({
         msgType: MsgType.PROTOCOL_MESSAGE,
@@ -1196,7 +1196,7 @@ function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
             sendMessage: Send.create({
                 applicationMessage: ApplicationMessage.create({
                     header: ApplicationMessageHeader.create({
-                        expires: expires.getTime() / 1000,
+                        expires: Math.floor(expires.getTime() / 1000),
                         sender: ownMrn,
                         bodySizeNumBytes: body.length,
                     }),
