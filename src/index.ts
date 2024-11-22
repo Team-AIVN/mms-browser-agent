@@ -24,6 +24,7 @@ import {bufToBigint} from "bigint-conversion";
 import {ResponseSearchObject} from "./SecomSearch";
 import {ISmmpHeader, SmmpHeader, SmmpMessage} from "../smmp";
 import logo from './images/MCP-logo.png';
+import * as pkijs from "pkijs";
 
 //To store the Agents/Clients own MRN loaded from the certificate
 let ownMrn = "";
@@ -207,91 +208,69 @@ connectBtn.addEventListener("click", async () => {
 
                 disconnectBtn.hidden = false;
                 receiveContainer.hidden = false;
-            } else {
-                if (mmtpMessage.msgType === MsgType.RESPONSE_MESSAGE) {
-                    const msgs = mmtpMessage.responseMessage.applicationMessages;
-                    for (const msg of msgs) {
-                        const validSignature = await verifySignatureOnMessage(msg);
+            } else if (mmtpMessage.msgType === MsgType.RESPONSE_MESSAGE) {
+                const msgs = mmtpMessage.responseMessage.applicationMessages;
+                for (const msg of msgs) {
+                    const validSignature = await verifySignatureOnMessage(msg);
 
-                        //Check if SMMP and in that case handle it as SMMP
-                        let msgIsSmmp = await isSmmp(msg)
-                        if (msgIsSmmp) {
-                            const smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body.subarray(4,msg.body.length)));
-                            const flags : number = smmpMessage.header.control[0]
+                    //Check if SMMP and in that case handle it as SMMP
+                    let msgIsSmmp = await isSmmp(msg)
+                    if (msgIsSmmp) {
+                        const smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body.subarray(4, msg.body.length)));
+                        const flags: number = smmpMessage.header.control[0]
 
-                            console.log("bef hasflags")
-                            //Handle cases of SMMP messages
-                            console.log("Flags:", flags)
-                            if (hasFlags(flags, [FlagsEnum.Handshake])) {
-                                console.log("aft hasflags")
+                        //Handle cases of SMMP messages
+                        if (hasFlags(flags, [FlagsEnum.Handshake])) {
 
-                                //Parse raw key from remote clients DER certificate
-                                const cert = Certificate.fromBER(smmpMessage.data);
-                                const rcPubKey = await cert.getPublicKey(
-                                    {
-                                        algorithm: {
-                                            algorithm: {
-                                                name: "ECDH",
-                                                namedCurve: "P-384",
-                                            },
-                                            usages: ["deriveKey"],
-                                        },
-                                    },
-                                )
+                            const asn1 = fromBER(smmpMessage.data);
+                            const certificate = new pkijs.Certificate({ schema: asn1.result });
 
-                                //Perform ECDH
-                                let conf = false
-                                let sharedKey
-                                    if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
-                                        sharedKey = await deriveSecretKey(privateKeyEcdh, rcPubKey)
-                                        conf = true
-                                    }
-                                let deliveryGuarantee = false
-                                if (hasFlags(flags, [FlagsEnum.DeliveryGuarantee])) {
-                                    deliveryGuarantee = true
-                                }
+                            const algorithm: EcKeyImportParams = {
+                                name: "ECDH",
+                                namedCurve: "P-384", // Ensure Safari supports this curve
+                            };
 
-                                //Create a remote client instance we can keep track of
-                                const remoteClient = createRemoteClient(rcPubKey, sharedKey, conf, deliveryGuarantee)
+                            const publicKeyInfo = certificate.subjectPublicKeyInfo;
 
-                                //Store remote client in a map, identified by MRN
-                                remoteClients.set(msg.header.sender, remoteClient)
+                            // Import the key using SubtleCrypto, this library is used for Safari compatibility
+                            //Refer to https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey#subjectpublickeyinfo
+                            const rcPubKey = await window.crypto.subtle.importKey(
+                                "spki", // Subject Public Key Info (SPKI) format
+                                publicKeyInfo.toSchema().toBER(false), // Convert the public key to BER, key in Uint8Array bin format
+                                algorithm,
+                                true, // Whether the key is extractable
+                                [] //No usages defined for now
+                            );
 
-                                // 2nd step handshake
-                                if (hasFlags(flags, [FlagsEnum.ACK])) {
-                                    const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
-                                    //Check if RC responded within time limit
-                                    if (handshakeRc) {
-                                        console.log("Remote client accepted initiation of SMMP session")
-                                        let flags : FlagsEnum[] = [FlagsEnum.ACK]
-                                        if (remoteClient.confidentiality) {
-                                            flags.push(FlagsEnum.Confidentiality)
-                                        }
-                                        if (remoteClient.deliveryAck) {
-                                            flags.push(FlagsEnum.DeliveryGuarantee)
-                                        }
 
-                                        let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
-                                        let smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
-                                        const finalPayload = appendMagicWord(smmpPayload)
-                                        let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
-                                        let signedSendMsg = await signMessage(mmtpMsg, false)
-                                        const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
-                                        lastSentMessage = signedSendMsg;
-                                        ws.send(toBeSent);
-                                        clearInterval(handshakeRc);
-                                        smmpConnectBtn.textContent = 'Connect SMMP';
-                                        smmpConnectBtn.classList.remove('active');
-                                        smmpConnectBtn.disabled = false;
-                                        ongoingSmmpHandshakes.delete(msg.header.sender)
-                                        showSmmpSessions(remoteClients)
-                                    }
-                                    //Send last ACK
-                                // 1st step handshake
-                                } else {
-                                    const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
-                                    console.log("Remote client wants to initiate SMMP session")
-                                    let flags : FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.ACK]
+                            console.log("Parsed cert from incoming msg")
+                            //Perform ECDH
+                            let conf = false
+                            let sharedKey
+                            if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
+                                sharedKey = await deriveSecretKey(privateKeyEcdh, rcPubKey)
+                                conf = true
+                                console.log("Derived key")
+                            }
+                            let deliveryGuarantee = false
+                            if (hasFlags(flags, [FlagsEnum.DeliveryGuarantee])) {
+                                deliveryGuarantee = true
+                            }
+
+                            //Create a remote client instance we can keep track of
+                            const remoteClient = createRemoteClient(rcPubKey, sharedKey, conf, deliveryGuarantee)
+
+                            //Store remote client in a map, identified by MRN
+                            remoteClients.set(msg.header.sender, remoteClient)
+
+                            // 2nd step handshake
+                            if (hasFlags(flags, [FlagsEnum.ACK])) {
+                                console.log("Contains ACK MSg")
+                                const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
+                                //Check if RC responded within time limit
+                                if (handshakeRc) {
+                                    console.log("Remote client accepted initiation of SMMP session")
+                                    let flags: FlagsEnum[] = [FlagsEnum.ACK]
                                     if (remoteClient.confidentiality) {
                                         flags.push(FlagsEnum.Confidentiality)
                                     }
@@ -299,97 +278,124 @@ connectBtn.addEventListener("click", async () => {
                                         flags.push(FlagsEnum.DeliveryGuarantee)
                                     }
 
-                                    let smmpAckMsg =  getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(certBytes))
-                                    const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
+                                    let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
+                                    let smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
                                     const finalPayload = appendMagicWord(smmpPayload)
                                     let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
                                     let signedSendMsg = await signMessage(mmtpMsg, false)
                                     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
                                     lastSentMessage = signedSendMsg;
                                     ws.send(toBeSent);
-                                    //Send with ACK
+                                    clearInterval(handshakeRc);
+                                    smmpConnectBtn.textContent = 'Connect SMMP';
+                                    smmpConnectBtn.classList.remove('active');
+                                    smmpConnectBtn.disabled = false;
+                                    ongoingSmmpHandshakes.delete(msg.header.sender)
+                                    showSmmpSessions(remoteClients)
                                 }
+                                //Send last ACK
+                                // 1st step handshake
+                            } else {
+                                const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
+                                console.log("Remote client wants to initiate SMMP session")
+                                let flags: FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.ACK]
+                                if (remoteClient.confidentiality) {
+                                    flags.push(FlagsEnum.Confidentiality)
+                                }
+                                if (remoteClient.deliveryAck) {
+                                    flags.push(FlagsEnum.DeliveryGuarantee)
+                                }
+
+                                let smmpAckMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(certBytes))
+                                const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
+                                const finalPayload = appendMagicWord(smmpPayload)
+                                let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
+                                let signedSendMsg = await signMessage(mmtpMsg, false)
+                                const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+                                lastSentMessage = signedSendMsg;
+                                ws.send(toBeSent);
+                                //Send with ACK
+                            }
                             // Case last part of three-way handshake, i.e. 3rd step of three-way handshake
                             // This is indicated by the presence of any handshake flag apart from the ACK
-                            } else if (hasFlags(flags, [FlagsEnum.ACK]) &&
-                                hasAnyFlag(flags, [FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee, FlagsEnum.NonRepudiation])) {
-                                console.log("Last part of three-way-handshake ACK - SMMP session is now setup!")
-                                showSmmpSessions(remoteClients)
+                        } else if (hasFlags(flags, [FlagsEnum.ACK]) &&
+                            hasAnyFlag(flags, [FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee, FlagsEnum.NonRepudiation])) {
+                            console.log("Last part of three-way-handshake ACK - SMMP session is now setup!")
+                            showSmmpSessions(remoteClients)
 
                             // Case - Reception of an ACK of a received message with delivery guarantee
-                            } else if (hasFlags(flags, [FlagsEnum.ACK])) {
-                                console.log("Msg with delivery guarantee was successfully received ")
+                        } else if (hasFlags(flags, [FlagsEnum.ACK])) {
+                            console.log("Msg with delivery guarantee was successfully received ")
 
-                                // Case regular reception of SMMP msg
-                            } else {
-                                //Get the remote client key
-                                const rc = remoteClients.get(msg.header.sender);
-
-                                //Decrypt message
-                                let plaintext = smmpMessage.data
-                                if (rc.confidentiality) {
-                                   plaintext =  await decrypt(rc.symKey, smmpMessage.data);
-                                }
-                                const segmented : boolean = (smmpMessage.header.totalBlocks > 1);
-
-                                if (segmented) {
-                                    await handleSegmentedMessage(smmpMessage.header, plaintext)
-                                    const segMsg = (segmentedMessages.get(smmpMessage.header.uuid)) //undefined treated as false
-                                    const segmentSpan: HTMLSpanElement | null = incomingArea.querySelector('span#newSpan');
-
-                                    if (segmentSpan) {
-                                        segmentSpan.remove()
-                                    } else {
-                                        if (incomingArea.textContent !== '') {
-                                            const lineBreak = document.createElement('br');
-                                            incomingArea.prepend(lineBreak);
-                                        }
-                                    }
-                                    const newSpan = document.createElement("span");
-                                    newSpan.id = "newSpan";
-                                    newSpan.setAttribute("data-toggle", "tooltip");
-                                    newSpan.innerHTML = `<b>Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}</b>`;
-                                    const date = new Date().toString();
-                                    newSpan.title = `${date}`;
-
-                                    incomingArea.prepend(newSpan);
-                                    if (segMsg.receivedBlocks === segMsg.totalBlocks) {
-                                        newSpan.remove()
-                                        msg.body = segMsg.data
-                                        showReceivedMessage(msg, validSignature)
-                                    }
-                                } else {
-                                    //No segmentation so simply display the decrypted message
-                                    console.log("msg bytes: ", plaintext)
-                                    msg.body = plaintext
-                                    showReceivedMessage(msg, validSignature);
-                                }
-                            }
+                            // Case regular reception of SMMP msg
                         } else {
-                            showReceivedMessage(msg, validSignature);
-                        }
-                    }
-                } else if (mmtpMessage.msgType === MsgType.PROTOCOL_MESSAGE && mmtpMessage.protocolMessage?.protocolMsgType === ProtocolMessageType.NOTIFY_MESSAGE) {
-                    const notifyMsg = mmtpMessage.protocolMessage.notifyMessage;
-                    const uuids = notifyMsg.messageMetadata.map(messageMetadata => messageMetadata.uuid);
+                            //Get the remote client key
+                            const rc = remoteClients.get(msg.header.sender);
 
-                    const receive = MmtpMessage.create({
-                        msgType: MsgType.PROTOCOL_MESSAGE,
-                        uuid: uuidv4(),
-                        protocolMessage: ProtocolMessage.create({
-                            protocolMsgType: ProtocolMessageType.RECEIVE_MESSAGE,
-                            receiveMessage: Receive.create({
-                                filter: Filter.create({
-                                    messageUuids: uuids
-                                })
+                            //Decrypt message
+                            let plaintext = smmpMessage.data
+                            if (rc.confidentiality) {
+                                plaintext = await decrypt(rc.symKey, smmpMessage.data);
+                            }
+                            const segmented: boolean = (smmpMessage.header.totalBlocks > 1);
+
+                            if (segmented) {
+                                await handleSegmentedMessage(smmpMessage.header, plaintext)
+                                const segMsg = (segmentedMessages.get(smmpMessage.header.uuid)) //undefined treated as false
+                                const segmentSpan: HTMLSpanElement | null = incomingArea.querySelector('span#newSpan');
+
+                                if (segmentSpan) {
+                                    segmentSpan.remove()
+                                } else {
+                                    if (incomingArea.textContent !== '') {
+                                        const lineBreak = document.createElement('br');
+                                        incomingArea.prepend(lineBreak);
+                                    }
+                                }
+                                const newSpan = document.createElement("span");
+                                newSpan.id = "newSpan";
+                                newSpan.setAttribute("data-toggle", "tooltip");
+                                newSpan.innerHTML = `<b>Receiving segmented message block ${segMsg.receivedBlocks}/${segMsg.totalBlocks}</b>`;
+                                const date = new Date().toString();
+                                newSpan.title = `${date}`;
+
+                                incomingArea.prepend(newSpan);
+                                if (segMsg.receivedBlocks === segMsg.totalBlocks) {
+                                    newSpan.remove()
+                                    msg.body = segMsg.data
+                                    showReceivedMessage(msg, validSignature)
+                                }
+                            } else {
+                                //No segmentation so simply display the decrypted message
+                                console.log("msg bytes: ", plaintext)
+                                msg.body = plaintext
+                                showReceivedMessage(msg, validSignature);
+                            }
+                        }
+                    } else {
+                        showReceivedMessage(msg, validSignature);
+                    }
+                }
+            } else if (mmtpMessage.msgType === MsgType.PROTOCOL_MESSAGE && mmtpMessage.protocolMessage?.protocolMsgType === ProtocolMessageType.NOTIFY_MESSAGE) {
+                const notifyMsg = mmtpMessage.protocolMessage.notifyMessage;
+                const uuids = notifyMsg.messageMetadata.map(messageMetadata => messageMetadata.uuid);
+
+                const receive = MmtpMessage.create({
+                    msgType: MsgType.PROTOCOL_MESSAGE,
+                    uuid: uuidv4(),
+                    protocolMessage: ProtocolMessage.create({
+                        protocolMsgType: ProtocolMessageType.RECEIVE_MESSAGE,
+                        receiveMessage: Receive.create({
+                            filter: Filter.create({
+                                messageUuids: uuids
                             })
                         })
-                    });
-                    msgBlob = MmtpMessage.encode(receive).finish();
+                    })
+                });
+                msgBlob = MmtpMessage.encode(receive).finish();
 
-                    console.log("Sending receive msg to ER")
-                    await sendMsgReceive()
-                }
+                console.log("Sending receive msg to ER")
+                await sendMsgReceive()
             }
         };
 
