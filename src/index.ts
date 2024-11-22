@@ -386,8 +386,9 @@ connectBtn.addEventListener("click", async () => {
                         })
                     });
                     msgBlob = MmtpMessage.encode(receive).finish();
-                    lastSentMessage = receive;
-                    ws.send(msgBlob);
+
+                    console.log("Sending receive msg to ER")
+                    await sendMsgReceive()
                 }
             }
         };
@@ -961,6 +962,22 @@ async function sendMsg(body : Uint8Array) {
     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
     console.log("Sent MMTP message: ", signedSendMsg);
     lastSentMessage = signedSendMsg;
+    ws.send(toBeSent);
+
+}
+
+async function sendMsgReceive() {
+    const receive = MmtpMessage.create({
+        msgType: MsgType.PROTOCOL_MESSAGE,
+        uuid: uuidv4(),
+        protocolMessage: ProtocolMessage.create({
+            protocolMsgType: ProtocolMessageType.RECEIVE_MESSAGE,
+            receiveMessage: Receive.create({})
+        })
+    });
+    const toBeSent = MmtpMessage.encode(receive).finish();
+    console.log("Sent MMTP message: ", toBeSent);
+    lastSentMessage = receive;
     ws.send(toBeSent);
 
 }
