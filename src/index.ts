@@ -25,6 +25,7 @@ import {ResponseSearchObject} from "./SecomSearch";
 import {ISmmpHeader, SmmpHeader, SmmpMessage} from "../smmp";
 import logo from './images/MCP-logo.png';
 import * as pkijs from "pkijs";
+import ENV from "./config";
 
 //To store the Agents/Clients own MRN loaded from the certificate
 let ownMrn = "";
@@ -71,6 +72,37 @@ imgElement.width = 100
 imgElement.classList.add('mt-3', 'mb-3') //Margin to the top and bottom
 logoCol.appendChild(imgElement);
 
+async function envSetup() {
+    try {
+        const config = await ENV;
+        console.log("Loaded MIR Configuration:", config);
+
+        const selectElement = document.getElementById("edgeRouterAddr") as HTMLSelectElement
+
+        // Populate list of edgerouters
+        Object.keys(config).forEach((envKey) => {
+            const routers = config[envKey];
+            routers.forEach((router) => {
+                const option = document.createElement("option");
+                option.value = router.value;
+                option.textContent = router.text;
+                selectElement.appendChild(option);
+            });
+        });
+    } catch (error) {
+        console.error("Failed to load environment configuration:", error);
+    }
+}
+
+export interface EdgerouterConfig {
+    value: string;
+    text: string;
+}
+
+export interface EnvironmentConfig {
+    [key: string]: EdgerouterConfig[];
+}
+
 interface Subject {
     value: string,
     name: string,
@@ -109,6 +141,7 @@ let remoteClients = new Map<string, RemoteClient>();
 let segmentedMessages = new Map<string, SegmentedMessage>();
 let ongoingSmmpHandshakes = new Map<string, NodeJS.Timer>();
 
+envSetup();
 
 connectBtn.addEventListener("click", async () => {
     if (!connectionType) {

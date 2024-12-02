@@ -7,7 +7,8 @@
     "build:dev": "webpack --mode=development",
     "build:prod": "webpack --mode=production --node-env=production",
     "watch": "webpack --watch",
-    "serve": "webpack serve"
+    "serve_mcc": "webpack serve --env mir=mcc",
+    "serve_nhn": "webpack serve --env mir=nhn"
   },
   "devDependencies": {
     "@types/bootstrap": "^5.2.6",
