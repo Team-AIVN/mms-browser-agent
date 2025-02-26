@@ -2,25 +2,17 @@ syntax = "proto3";
 
 option go_package = "./smmp";
 
-message SmmpHeader {
-  bytes control = 2;
-  uint32 payloadLen = 3;
-  optional uint32 blockNum = 4;
-  optional uint32 totalBlocks = 5;
-  string uuid = 6;
-  repeated Curve curves = 7;
-
-}
-
-enum Curve {
-  unspecified = 0;
-  secp256r1 = 1;
-  secp384r1 = 2;
-}
-
 message SmmpMessage {
   SmmpHeader header = 1;
   bytes data = 2;
+}
+message SmmpHeader {
+  bytes control = 1;
+  uint32 payloadLen = 2;
+  optional uint32 blockNum = 3;
+  optional uint32 totalBlocks = 4;
+  string uuid = 5;
+  repeated string responseToUuid = 6;
 }
 
 
