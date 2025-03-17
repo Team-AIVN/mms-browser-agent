@@ -18,13 +18,13 @@ import {
 import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
 import "bootstrap";
+import * as pkijs from "pkijs";
 import {Certificate} from "pkijs";
 import {fromBER, Integer, Sequence} from "asn1js";
 import {bufToBigint} from "bigint-conversion";
 import {ResponseSearchObject} from "./SecomSearch";
 import {ISmmpHeader, SmmpHeader, SmmpMessage} from "../smmp";
 import logo from './images/MCP-logo.png';
-import * as pkijs from "pkijs";
 import ENV from "./config";
 
 //To store the Agents/Clients own MRN loaded from the certificate
@@ -132,7 +132,7 @@ connTypeSelect.addEventListener("change", () => {
 
 let certificate: Certificate;
 let privateKey: CryptoKey;
-let privateKeyEcdh : CryptoKey;
+let privateKeyEcdh: CryptoKey;
 
 let ws: WebSocket;
 let reconnectToken: string;
@@ -256,7 +256,7 @@ connectBtn.addEventListener("click", async () => {
                         if (hasFlags(flags, [FlagsEnum.Handshake])) {
 
                             const asn1 = fromBER(smmpMessage.data);
-                            const certificate = new pkijs.Certificate({ schema: asn1.result });
+                            const certificate = new pkijs.Certificate({schema: asn1.result});
 
                             const algorithm: EcKeyImportParams = {
                                 name: "ECDH",
@@ -467,7 +467,6 @@ connectBtn.addEventListener("click", async () => {
 });
 
 
-
 async function isSmmp(msg: IApplicationMessage): Promise<boolean> {
     if (msg.body.length < 4) { // Out of bounds check for SMMP magic word
         return false;
@@ -486,8 +485,8 @@ async function isSmmp(msg: IApplicationMessage): Promise<boolean> {
 }
 
 
-
 let certBytes: ArrayBuffer;
+
 async function loadCertAndPrivateKeyFromFiles() {
     if (!certFileInput.files.length || !privateKeyFileInput.files.length) {
         alert("Please provide a certificate and private key file")
@@ -583,17 +582,17 @@ interface Agent {
 }
 
 interface RemoteClient {
-    pubKey : CryptoKey,
-    symKey : CryptoKey,
-    confidentiality : boolean,
-    deliveryAck : boolean,
+    pubKey: CryptoKey,
+    symKey: CryptoKey,
+    confidentiality: boolean,
+    deliveryAck: boolean,
     nonRepudiation: boolean,
 }
 
 interface SegmentedMessage {
-    data : Uint8Array
-    receivedBlocks : number
-    totalBlocks : number
+    data: Uint8Array
+    receivedBlocks: number
+    totalBlocks: number
 }
 
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
@@ -638,7 +637,7 @@ mrnRadio.addEventListener('change', () => {
     }
 });
 
-function mrnOptionExists(mrn : string, selectElem : HTMLSelectElement) {
+function mrnOptionExists(mrn: string, selectElem: HTMLSelectElement) {
     for (const option of selectElem.options) {
         console.log("Compare to ", option.value)
         if (option.value === mrn) {
@@ -648,7 +647,6 @@ function mrnOptionExists(mrn : string, selectElem : HTMLSelectElement) {
     }
     return false
 }
-
 
 
 subjectRadio.addEventListener('change', () => {
@@ -964,7 +962,7 @@ sendBtn.addEventListener("click", async () => {
     unloadedState.style.display = 'block';
 });
 
-async function sendMsg(body : Uint8Array) {
+async function sendMsg(body: Uint8Array) {
 
     // set expiration to be one hour from now
     const expires = new Date();
@@ -987,7 +985,7 @@ async function sendMsg(body : Uint8Array) {
             })
         })
     });
-    let subjectCastMsg : boolean = false
+    let subjectCastMsg: boolean = false
 
     if (mrnRadio.checked) {
         const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
@@ -1038,20 +1036,20 @@ sendSmmpBtn.addEventListener("click", async () => {
         const encoder = new TextEncoder();
         body = encoder.encode(text);
     }
-    let flags : FlagsEnum[] = []
+    let flags: FlagsEnum[] = []
     const smmpUuid = uuidv4()
     const msgSegments = Math.ceil(body.length / SMMP_SEGMENTATION_THRESHOLD + 1)
     console.log("MSG SEGMENTS: ", msgSegments)
     for (let i = 0; i < msgSegments; i++) {
-        const segment = body.subarray(i*SMMP_SEGMENTATION_THRESHOLD, (i+1)*SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
+        const segment = body.subarray(i * SMMP_SEGMENTATION_THRESHOLD, (i + 1) * SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
         console.log("Total segments", msgSegments)
         console.log("Cur segment", segment)
         const cipherSegment = await encrypt(rc.symKey, segment)
-            const smmpMessage = getSmmpMessage(flags, i, msgSegments, smmpUuid, new Uint8Array(cipherSegment))
-            console.log(smmpMessage)
-            const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
-            await sendSmmpMsg(smmpPayload)
-        }
+        const smmpMessage = getSmmpMessage(flags, i, msgSegments, smmpUuid, new Uint8Array(cipherSegment))
+        console.log(smmpMessage)
+        const smmpPayload = SmmpMessage.encode(smmpMessage).finish()
+        await sendSmmpMsg(smmpPayload)
+    }
 
     setTimeout(() => {
         sendSmmpBtn.textContent = 'Sent';
@@ -1070,12 +1068,12 @@ sendSmmpBtn.addEventListener("click", async () => {
 });
 
 //Caller should pass the smmp payload as argument to this function
-async function sendSmmpMsg(body : Uint8Array) {
+async function sendSmmpMsg(body: Uint8Array) {
     const dataPayload = appendMagicWord(body)
     await sendMsg(dataPayload)
 }
 
-downloadReceivedBtn.addEventListener('click', async() => {
+downloadReceivedBtn.addEventListener('click', async () => {
     setTimeout(() => {
         downloadReceivedBtn.textContent = 'Downloading...';
         downloadReceivedBtn.classList.add('active')
@@ -1135,7 +1133,7 @@ smmpConnectBtn.addEventListener("click", async () => {
         count--;
 
         // When the countdown reaches 0, stop the interval and update the button text
-        if (count< 0) {
+        if (count < 0) {
             clearInterval(countdownInterval);
             smmpConnectBtn.textContent = 'No response received';
             setTimeout(() => {
@@ -1218,7 +1216,7 @@ enum FlagsEnum {
     NonRepudiation = 1 << 4     // N (bit value 16)
 }
 
-function setFlags(flags: FlagsEnum[]) : number {
+function setFlags(flags: FlagsEnum[]): number {
     let result = 0
     for (const flag of flags) {
         result |= flag;
@@ -1226,25 +1224,25 @@ function setFlags(flags: FlagsEnum[]) : number {
     return result;
 }
 
-function hasFlags(val : number, flags : FlagsEnum[]) : boolean {
-    for (const flag  of flags) {
-        if ((val&flag) === 0) {
+function hasFlags(val: number, flags: FlagsEnum[]): boolean {
+    for (const flag of flags) {
+        if ((val & flag) === 0) {
             return false
         }
     }
     return true
 }
 
-function hasAnyFlag(val : number, flags : FlagsEnum[]) : boolean {
-    for (const flag  of flags) {
-        if ((val&flag) !== 0) {
+function hasAnyFlag(val: number, flags: FlagsEnum[]): boolean {
+    for (const flag of flags) {
+        if ((val & flag) !== 0) {
             return true
         }
     }
     return false
 }
 
-function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
+function getMmtpSendMrnMsg(recipientMrn: string, body: Uint8Array) {
     const expires = new Date();
     expires.setTime(expires.getTime() + 3_600_000);
 
@@ -1272,7 +1270,7 @@ function getMmtpSendMrnMsg(recipientMrn : string, body : Uint8Array) {
     return sendMsg
 }
 
-function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number, smmpUuid : string, smmpData : Uint8Array) {
+function getSmmpMessage(flags: FlagsEnum[], blcNum: number, totalBlcs: number, smmpUuid: string, smmpData: Uint8Array) {
     let controlBits = setFlags(flags)
 
     //Due to an unsafe cast in the Go Implementation - TODO: This needs to be changed in both implementations
@@ -1282,24 +1280,24 @@ function getSmmpMessage(flags : FlagsEnum[], blcNum : number, totalBlcs : number
 
     return SmmpMessage.create({
         header: SmmpHeader.create({
-            control : arr,
-            blockNum : blcNum,
-            totalBlocks : totalBlcs,
-            payloadLen : smmpData.length,
-            uuid : smmpUuid
+            control: arr,
+            blockNum: blcNum,
+            totalBlocks: totalBlcs,
+            payloadLen: smmpData.length,
+            uuid: smmpUuid
         }),
-        data : smmpData
+        data: smmpData
     })
 }
 
 function getSmmpHandshakeMessage() {
-    const flags : FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee]
+    const flags: FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.Confidentiality, FlagsEnum.DeliveryGuarantee]
     //Get the signing certificate
     return getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(certBytes))
 }
 
 
-async function signMessage(msg : MmtpMessage, subject : boolean) {
+async function signMessage(msg: MmtpMessage, subject: boolean) {
     const appMsgHeader = msg.protocolMessage.sendMessage.applicationMessage.header
     const appMsg = msg.protocolMessage.sendMessage.applicationMessage
 
@@ -1353,11 +1351,11 @@ const createRemoteClient = (pk: CryptoKey, sk: CryptoKey, conf: boolean, dAck: b
     };
 };
 
-const createSegmentedMessage = (rb : number, tb : number, maxBlockSize : number): SegmentedMessage => {
+const createSegmentedMessage = (rb: number, tb: number, maxBlockSize: number): SegmentedMessage => {
     return {
-        receivedBlocks : rb,
-        totalBlocks : tb,
-        data : new Uint8Array(tb * maxBlockSize)
+        receivedBlocks: rb,
+        totalBlocks: tb,
+        data: new Uint8Array(tb * maxBlockSize)
     };
 };
 
@@ -1368,7 +1366,7 @@ loadedState.style.display = 'none';
 unloadedState.style.display = 'block';
 
 //Derives a shared AES-CTR 256-bit key for session confidentiality
-async function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
+async function deriveSecretKey(privateKey: CryptoKey, publicKey: CryptoKey) {
     const privateKeyAlgorithm = privateKey.algorithm;
     const publicKeyAlgorithm = publicKey.algorithm;
 
@@ -1397,13 +1395,13 @@ async function deriveSecretKey(privateKey : CryptoKey, publicKey : CryptoKey) {
 
 //Inspired from https://github.com/mdn/dom-examples/blob/main/web-crypto/derive-key/ecdh.js
 //Note from  NIST SP800-38A standard the max number of blocks MAY NOT EXCEED 2^64
-async function encrypt(secretKey : CryptoKey, data : Uint8Array) {
+async function encrypt(secretKey: CryptoKey, data: Uint8Array) {
     let iv = window.crypto.getRandomValues(new Uint8Array(16));
     let ciphertext = await crypto.subtle.encrypt(
-    {
-        name: "AES-CTR",
-        counter: iv,
-        length: 64 //The length that should be incremented
+        {
+            name: "AES-CTR",
+            counter: iv,
+            length: 64 //The length that should be incremented
         },
         secretKey,
         data,
@@ -1418,7 +1416,7 @@ async function encrypt(secretKey : CryptoKey, data : Uint8Array) {
     return result;
 }
 
-async function decrypt(secretKey : CryptoKey, data : Uint8Array) {
+async function decrypt(secretKey: CryptoKey, data: Uint8Array) {
     // Extract the IV from the beginning of the data
     let iv = data.slice(0, 16);
     let ciphertext = data.slice(16);
@@ -1436,7 +1434,7 @@ async function decrypt(secretKey : CryptoKey, data : Uint8Array) {
     return new Uint8Array(decrypted);
 }
 
-function appendMagicWord(smmpPayload : Uint8Array) : Uint8Array {
+function appendMagicWord(smmpPayload: Uint8Array): Uint8Array {
     const magic = new Uint8Array([83, 77, 77, 80]);
     const finalPayload = new Uint8Array(magic.length + smmpPayload.length)
     finalPayload.set(magic, 0);
@@ -1444,7 +1442,7 @@ function appendMagicWord(smmpPayload : Uint8Array) : Uint8Array {
     return finalPayload
 }
 
-function showSmmpSessions(sessions : Map<string,RemoteClient>) {
+function showSmmpSessions(sessions: Map<string, RemoteClient>) {
     const activeSmmpSessionsDiv = document.getElementById('activeSmmpSessions');
     activeSmmpSessionsDiv.innerHTML = ''; // Clear existing images
 
@@ -1496,7 +1494,7 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
                 endSessionBtn.disabled = true
                 endSessionBtn.classList.add('active')
                 setTimeout(() => {
-                   li.remove()
+                    li.remove()
                 }, 2000);
 
             })
@@ -1513,7 +1511,7 @@ function showSmmpSessions(sessions : Map<string,RemoteClient>) {
     }
 }
 
-async function handleSegmentedMessage(header : ISmmpHeader, plaintext : Uint8Array) {
+async function handleSegmentedMessage(header: ISmmpHeader, plaintext: Uint8Array) {
     //If no entry exists, create one
     let segmentedMsg = segmentedMessages.get(header.uuid);
     if (!segmentedMsg) {
