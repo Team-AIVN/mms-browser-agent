@@ -6,6 +6,9 @@ let ENV: Promise<EnvironmentConfig>;
 
 if (ENVIRONMENT === "mcc") {
     ENV = import("./env.mcc").then((module) => module.default);
+
+} else if (ENVIRONMENT === "localhost") {
+    ENV = import("./env.localhost").then((module) => module.default);
 } else {
     throw new Error("Invalid environment configuration");
 }
