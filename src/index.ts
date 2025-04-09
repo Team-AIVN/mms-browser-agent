@@ -23,7 +23,7 @@ import {Certificate} from "pkijs";
 import {fromBER, Integer, Sequence} from "asn1js";
 import {bufToBigint} from "bigint-conversion";
 import {ResponseSearchObject} from "./SecomSearch";
-import {ISmmpHeader, SmmpHeader, SmmpMessage} from "../smmp";
+import {SmmpHeader, SmmpMessage} from "../smmp";
 import logo from './images/MCP-logo.png';
 import ENV from "./config";
 
@@ -1511,7 +1511,7 @@ function showSmmpSessions(sessions: Map<string, RemoteClient>) {
     }
 }
 
-async function handleSegmentedMessage(header: ISmmpHeader, plaintext: Uint8Array) {
+async function handleSegmentedMessage(header: SmmpHeader, plaintext: Uint8Array) {
     //If no entry exists, create one
     let segmentedMsg = segmentedMessages.get(header.uuid);
     if (!segmentedMsg) {

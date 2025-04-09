@@ -10,6 +10,7 @@
     "serve_mcc": "webpack serve --env mir=mcc"
   },
   "devDependencies": {
+    "@bufbuild/protobuf": "^2.2.5",
     "@types/bootstrap": "^5.2.6",
     "@types/jquery": "^3.5.29",
     "@types/uuid": "^10.0.0",
@@ -23,6 +24,7 @@
     "sass-loader": "^16.0.2",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.4.4",
+    "ts-proto": "^2.7.0",
     "typescript": "^5.6.3",
     "url-loader": "^4.1.1",
     "webpack": "^5.95.0",
@@ -36,7 +38,6 @@
     "bigint-conversion": "^2.4.3",
     "bootstrap": "^5.3.2",
     "buffer": "^6.0.3",
-    "google-protobuf": "^3.21.4",
     "jquery": "^3.7.1",
     "long": "^5.2.3",
     "path-browserify": "^1.0.1",
