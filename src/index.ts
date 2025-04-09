@@ -4,7 +4,6 @@ import {
     Connect,
     Disconnect,
     Filter,
-    IApplicationMessage,
     MmtpMessage,
     MsgType,
     ProtocolMessage,
@@ -14,7 +13,7 @@ import {
     Send,
     Subscribe,
     Unsubscribe
-} from "../mmtp";
+} from "../mmtp/ts/mmtp";
 import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
 import "bootstrap";
@@ -159,6 +158,8 @@ connectBtn.addEventListener("click", async () => {
                 break;
             }
         }
+        console.log("Own MRN after cert is loaded")
+        console.log(ownMrn);
     }
 
     let wsUrl = urlInput.value;
@@ -170,6 +171,9 @@ connectBtn.addEventListener("click", async () => {
     }
     const edgeRouter = urlInput.options[urlInput.selectedIndex].textContent;
 
+
+    console.log("WS URL is")
+    console.log(wsUrl);
     ws = new WebSocket(wsUrl);
 
     ws.addEventListener("open", () => {
@@ -242,18 +246,21 @@ connectBtn.addEventListener("click", async () => {
                 disconnectBtn.hidden = false;
                 receiveContainer.hidden = false;
             } else if (mmtpMessage.msgType === MsgType.RESPONSE_MESSAGE) {
-                const msgs = mmtpMessage.responseMessage.applicationMessages;
+                const msgs = mmtpMessage.responseMessage.messageContent;
                 for (const msg of msgs) {
-                    const validSignature = await verifySignatureOnMessage(msg);
+                    const appMsg = msg.msg
+                    const validSignature = await verifySignatureOnMessage(appMsg);
 
+                    console.log("Verify sig")
                     //Check if SMMP and in that case handle it as SMMP
-                    let msgIsSmmp = await isSmmp(msg)
+                    let msgIsSmmp = await isSmmp(appMsg)
                     if (msgIsSmmp) {
-                        const smmpMessage = SmmpMessage.decode(new Uint8Array(msg.body.subarray(4, msg.body.length)));
+                        const smmpMessage = SmmpMessage.decode(new Uint8Array(appMsg.body.subarray(4, appMsg.body.length)));
                         const flags: number = smmpMessage.header.control[0]
 
                         //Handle cases of SMMP messages
                         if (hasFlags(flags, [FlagsEnum.Handshake])) {
+                            console.log("Handshake")
 
                             const asn1 = fromBER(smmpMessage.data);
                             const certificate = new pkijs.Certificate({schema: asn1.result});
@@ -276,7 +283,7 @@ connectBtn.addEventListener("click", async () => {
                             );
 
 
-                            console.log("Parsed cert from incoming msg")
+                            console.log("Parsed cert from incoming appMsg")
                             //Perform ECDH
                             let conf = false
                             let sharedKey
@@ -294,12 +301,12 @@ connectBtn.addEventListener("click", async () => {
                             const remoteClient = createRemoteClient(rcPubKey, sharedKey, conf, deliveryGuarantee)
 
                             //Store remote client in a map, identified by MRN
-                            remoteClients.set(msg.header.sender, remoteClient)
+                            remoteClients.set(appMsg.header.sender, remoteClient)
 
                             // 2nd step handshake
                             if (hasFlags(flags, [FlagsEnum.ACK])) {
                                 console.log("Contains ACK MSg")
-                                const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
+                                const handshakeRc = ongoingSmmpHandshakes.get(appMsg.header.sender)
                                 //Check if RC responded within time limit
                                 if (handshakeRc) {
                                     console.log("Remote client accepted initiation of SMMP session")
@@ -314,7 +321,7 @@ connectBtn.addEventListener("click", async () => {
                                     let smmpAckLastMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
                                     let smmpPayload = SmmpMessage.encode(smmpAckLastMsg).finish()
                                     const finalPayload = appendMagicWord(smmpPayload)
-                                    let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
+                                    let mmtpMsg = getMmtpSendMrnMsg(appMsg.header.sender, finalPayload)
                                     let signedSendMsg = await signMessage(mmtpMsg, false)
                                     const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
                                     lastSentMessage = signedSendMsg;
@@ -323,13 +330,13 @@ connectBtn.addEventListener("click", async () => {
                                     smmpConnectBtn.textContent = 'Connect SMMP';
                                     smmpConnectBtn.classList.remove('active');
                                     smmpConnectBtn.disabled = false;
-                                    ongoingSmmpHandshakes.delete(msg.header.sender)
+                                    ongoingSmmpHandshakes.delete(appMsg.header.sender)
                                     showSmmpSessions(remoteClients)
                                 }
                                 //Send last ACK
                                 // 1st step handshake
                             } else {
-                                const handshakeRc = ongoingSmmpHandshakes.get(msg.header.sender)
+                                const handshakeRc = ongoingSmmpHandshakes.get(appMsg.header.sender)
                                 console.log("Remote client wants to initiate SMMP session")
                                 let flags: FlagsEnum[] = [FlagsEnum.Handshake, FlagsEnum.ACK]
                                 if (remoteClient.confidentiality) {
@@ -342,7 +349,7 @@ connectBtn.addEventListener("click", async () => {
                                 let smmpAckMsg = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(certBytes))
                                 const smmpPayload = SmmpMessage.encode(smmpAckMsg).finish()
                                 const finalPayload = appendMagicWord(smmpPayload)
-                                let mmtpMsg = getMmtpSendMrnMsg(msg.header.sender, finalPayload)
+                                let mmtpMsg = getMmtpSendMrnMsg(appMsg.header.sender, finalPayload)
                                 let signedSendMsg = await signMessage(mmtpMsg, false)
                                 const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
                                 lastSentMessage = signedSendMsg;
@@ -360,10 +367,10 @@ connectBtn.addEventListener("click", async () => {
                         } else if (hasFlags(flags, [FlagsEnum.ACK])) {
                             console.log("Msg with delivery guarantee was successfully received ")
 
-                            // Case regular reception of SMMP msg
+                            // Case regular reception of SMMP appMsg
                         } else {
                             //Get the remote client key
-                            const rc = remoteClients.get(msg.header.sender);
+                            const rc = remoteClients.get(appMsg.header.sender);
 
                             //Decrypt message
                             let plaintext = smmpMessage.data
@@ -395,18 +402,18 @@ connectBtn.addEventListener("click", async () => {
                                 incomingArea.prepend(newSpan);
                                 if (segMsg.receivedBlocks === segMsg.totalBlocks) {
                                     newSpan.remove()
-                                    msg.body = segMsg.data
-                                    showReceivedMessage(msg, validSignature)
+                                    appMsg.body = segMsg.data
+                                    showReceivedMessage(appMsg, validSignature)
                                 }
                             } else {
                                 //No segmentation so simply display the decrypted message
-                                console.log("msg bytes: ", plaintext)
-                                msg.body = plaintext
-                                showReceivedMessage(msg, validSignature);
+                                console.log("appMsg bytes: ", plaintext)
+                                appMsg.body = plaintext
+                                showReceivedMessage(appMsg, validSignature);
                             }
                         }
                     } else {
-                        showReceivedMessage(msg, validSignature);
+                        showReceivedMessage(appMsg, validSignature);
                     }
                 }
             } else if (mmtpMessage.msgType === MsgType.PROTOCOL_MESSAGE && mmtpMessage.protocolMessage?.protocolMsgType === ProtocolMessageType.NOTIFY_MESSAGE) {
@@ -467,7 +474,7 @@ connectBtn.addEventListener("click", async () => {
 });
 
 
-async function isSmmp(msg: IApplicationMessage): Promise<boolean> {
+async function isSmmp(msg: ApplicationMessage): Promise<boolean> {
     if (msg.body.length < 4) { // Out of bounds check for SMMP magic word
         return false;
     }
@@ -782,7 +789,7 @@ interface SignatureVerificationResponse {
     serialNumber?: bigint
 }
 
-async function verifySignatureOnMessage(msg: IApplicationMessage): Promise<SignatureVerificationResponse> {
+async function verifySignatureOnMessage(msg: ApplicationMessage): Promise<SignatureVerificationResponse> {
     // Currently we only check subject-casts
     if (msg.header.subject) {
         const signatureSequence = fromBER(msg.signature).result as Sequence;
@@ -841,7 +848,7 @@ async function verifySignatureOnMessage(msg: IApplicationMessage): Promise<Signa
 
 const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the word "FILE"
 
-function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
+function showReceivedMessage(msg: ApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
     const payload = msg.body;
     const decoder = new TextDecoder();
     const lineBreak = document.createElement('br');
