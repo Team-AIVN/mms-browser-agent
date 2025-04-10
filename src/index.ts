@@ -137,6 +137,7 @@ let ws: WebSocket;
 let reconnectToken: string;
 let lastSentMessage: MmtpMessage;
 let remoteClients = new Map<string, RemoteClient>();
+let pendingTerminations = new Map<string, (result: boolean) => void>();
 let segmentedMessages = new Map<string, SegmentedMessage>();
 let ongoingSmmpHandshakes = new Map<string, NodeJS.Timer>();
 
@@ -259,6 +260,36 @@ connectBtn.addEventListener("click", async () => {
                         const flags: number = smmpMessage.header.control[0]
 
                         //Handle cases of SMMP messages
+                        if (hasFlags(flags, [FlagsEnum.Finish, FlagsEnum.ACK])) {
+                            const rcMrn = appMsg.header.sender
+                            if (pendingTerminations.has(rcMrn)) {
+                                const resolveFn = pendingTerminations.get(rcMrn)!; //Invoke callback func
+                                pendingTerminations.delete(rcMrn);
+                                console.log(`Secure session termination ACK received from ${rcMrn}`);
+                                resolveFn(true);
+                            }
+                            return;
+                        }
+
+                        if (hasFlags(flags, [FlagsEnum.Finish])) {
+                            const rcMrn = appMsg.header.sender
+                            console.log(`${rcMrn} initiated secure termination`)
+                            const deletionRes = remoteClients.delete(rcMrn);
+                            showSmmpSessions(remoteClients)
+                            console.log(`Deleted ${rcMrn} key ${deletionRes}`)
+                            const flags: FlagsEnum[] = [FlagsEnum.Finish, FlagsEnum.ACK]
+                            const ackTermination = getSmmpMessage(flags, 0, 1, uuidv4(), new Uint8Array(0))
+                            const smmpPayload = SmmpMessage.encode(ackTermination).finish()
+                            const finalPayload = appendMagicWord(smmpPayload)
+                            let mmtpMsg = getMmtpSendMrnMsg(rcMrn, finalPayload)
+                            let signedSendMsg = await signMessage(mmtpMsg, false)
+                            const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+                            lastSentMessage = signedSendMsg;
+                            ws.send(toBeSent);
+                            console.log("ACKED TERMINATION")
+                            return
+                        }
+
                         if (hasFlags(flags, [FlagsEnum.Handshake])) {
                             console.log("Handshake")
 
@@ -1452,6 +1483,39 @@ function appendMagicWord(smmpPayload: Uint8Array): Uint8Array {
     return finalPayload
 }
 
+
+async function terminateSession(rcMrn : string): Promise<boolean> {
+    const flags: FlagsEnum[] = [FlagsEnum.Finish]
+    const terminateMsg =  getSmmpMessage(flags, 0, 1,  uuidv4(), new Uint8Array(0))
+
+    //Check existence of rc
+    if (!remoteClients.has(rcMrn)) {
+        return false;
+    }
+    const smmpPayload = SmmpMessage.encode(terminateMsg).finish()
+    const finalPayload = appendMagicWord(smmpPayload)
+    let mmtpMsg = getMmtpSendMrnMsg(rcMrn, finalPayload)
+    let signedSendMsg = await signMessage(mmtpMsg, false)
+    const toBeSent = MmtpMessage.encode(signedSendMsg).finish();
+    lastSentMessage = signedSendMsg;
+    ws.send(toBeSent);
+    console.log("Awaiting secure session termination from ${rcMrn}")
+
+    //Await RCs ack which will delete the RC entry
+    return new Promise<boolean>((resolve) => {
+        pendingTerminations.set(rcMrn, resolve);
+
+        setTimeout(() => {
+            if (pendingTerminations.has(rcMrn)) {
+                pendingTerminations.delete(rcMrn);
+                console.error("NO response from remote client. Session terminated insecurely")
+                resolve(false);
+            }
+        }, 60000);
+    });
+}
+
+
 function showSmmpSessions(sessions: Map<string, RemoteClient>) {
     const activeSmmpSessionsDiv = document.getElementById('activeSmmpSessions');
     activeSmmpSessionsDiv.innerHTML = ''; // Clear existing images
@@ -1499,10 +1563,11 @@ function showSmmpSessions(sessions: Map<string, RemoteClient>) {
             endSessionBtn.classList.add('btn', 'btn-danger', 'btn-sm')
             endSessionBtn.textContent = 'x'
             endSessionBtn.addEventListener('click', async () => {
-                //TODO Send SMMP Close segment once defined in the protocol
-                remoteClients.delete(mrn)
+                endSessionBtn.textContent = 'TP';
                 endSessionBtn.disabled = true
                 endSessionBtn.classList.add('active')
+                await terminateSession(mrn)
+                remoteClients.delete(mrn) //Wipe session key
                 setTimeout(() => {
                     li.remove()
                 }, 2000);
