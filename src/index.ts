@@ -1220,7 +1220,10 @@ enum FlagsEnum {
     ACK = 1 << 1,               // A (bit value 2)
     Confidentiality = 1 << 2,   // C (bit value 4)
     DeliveryGuarantee = 1 << 3, // D (bit value 8)
-    NonRepudiation = 1 << 4     // N (bit value 16)
+    NonRepudiation = 1 << 4,    // N (bit value 16)
+    Error = 1 << 5,              // E (bit value 32)
+    Finish = 1 << 6              // F (bit value 32)
+
 }
 
 function setFlags(flags: FlagsEnum[]): number {
