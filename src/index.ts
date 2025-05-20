@@ -4,7 +4,7 @@ import {
     Connect,
     Disconnect,
     Filter,
-    IApplicationMessage,
+    MessageContent,
     MmtpMessage,
     MsgType,
     ProtocolMessage,
@@ -14,7 +14,7 @@ import {
     Send,
     Subscribe,
     Unsubscribe
-} from "../mmtp";
+} from "../mmtp/ts/mmtp";
 import {v4 as uuidv4} from "uuid";
 import "./styles.scss";
 import "bootstrap";
@@ -70,7 +70,11 @@ imgElement.src = logo;
 imgElement.alt = 'MCP Logo';
 imgElement.width = 100
 imgElement.classList.add('mt-3', 'mb-3') //Margin to the top and bottom
+
+const versioningStr = document.createElement('p')
+versioningStr.textContent = 'Updated May 2025'
 logoCol.appendChild(imgElement);
+logoCol.appendChild(versioningStr);
 
 async function envSetup() {
     try {
@@ -242,8 +246,10 @@ connectBtn.addEventListener("click", async () => {
                 disconnectBtn.hidden = false;
                 receiveContainer.hidden = false;
             } else if (mmtpMessage.msgType === MsgType.RESPONSE_MESSAGE) {
-                const msgs = mmtpMessage.responseMessage.applicationMessages;
-                for (const msg of msgs) {
+                const msgs = mmtpMessage.responseMessage.messageContent;
+                for (const m of msgs) {
+
+                    const msg = m.msg
                     const validSignature = await verifySignatureOnMessage(msg);
 
                     //Check if SMMP and in that case handle it as SMMP
@@ -467,7 +473,7 @@ connectBtn.addEventListener("click", async () => {
 });
 
 
-async function isSmmp(msg: IApplicationMessage): Promise<boolean> {
+async function isSmmp(msg : ApplicationMessage): Promise<boolean> {
     if (msg.body.length < 4) { // Out of bounds check for SMMP magic word
         return false;
     }
@@ -782,7 +788,7 @@ interface SignatureVerificationResponse {
     serialNumber?: bigint
 }
 
-async function verifySignatureOnMessage(msg: IApplicationMessage): Promise<SignatureVerificationResponse> {
+async function verifySignatureOnMessage(msg: ApplicationMessage): Promise<SignatureVerificationResponse> {
     // Currently we only check subject-casts
     if (msg.header.subject) {
         const signatureSequence = fromBER(msg.signature).result as Sequence;
@@ -841,7 +847,7 @@ async function verifySignatureOnMessage(msg: IApplicationMessage): Promise<Signa
 
 const fileBytesArray = new TextEncoder().encode("FILE"); // The bytes of the word "FILE"
 
-function showReceivedMessage(msg: IApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
+function showReceivedMessage(msg: ApplicationMessage, signatureVerificationResponse: SignatureVerificationResponse) {
     const payload = msg.body;
     const decoder = new TextDecoder();
     const lineBreak = document.createElement('br');

@@ -1,0 +1,3 @@
+[submodule "mmtp"]
+	path = mmtp
+	url = https://github.com/maritimeconnectivity/MMS.git
