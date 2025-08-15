@@ -1044,7 +1044,7 @@ sendSmmpBtn.addEventListener("click", async () => {
     }
     let flags: FlagsEnum[] = []
     const smmpUuid = uuidv4()
-    const msgSegments = Math.ceil(body.length / SMMP_SEGMENTATION_THRESHOLD + 1)
+    const msgSegments = Math.ceil(body.length / SMMP_SEGMENTATION_THRESHOLD)
     console.log("MSG SEGMENTS: ", msgSegments)
     for (let i = 0; i < msgSegments; i++) {
         const segment = body.subarray(i * SMMP_SEGMENTATION_THRESHOLD, (i + 1) * SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
