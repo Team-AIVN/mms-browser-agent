@@ -6,6 +6,8 @@ let ENV: Promise<EnvironmentConfig>;
 
 if (ENVIRONMENT === "mcc") {
     ENV = import("./env.mcc").then((module) => module.default);
+} else if (ENVIRONMENT === "aivn") {
+    ENV = import("./env.aivn").then((module) => module.default);
 } else {
     throw new Error("Invalid environment configuration");
 }
