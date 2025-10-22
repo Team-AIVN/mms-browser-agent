@@ -11,7 +11,6 @@
   },
   "devDependencies": {
     "@types/bootstrap": "^5.2.6",
-    "@types/jquery": "^3.5.33",
     "autoprefixer": "^10.4.14",
     "css-loader": "^7.0.0",
     "html-webpack-plugin": "^5.6.4",
@@ -36,7 +35,6 @@
     "bigint-conversion": "^2.4.3",
     "bootstrap": "^5.3.8",
     "buffer": "^6.0.3",
-    "jquery": "^3.7.1",
     "long": "^5.2.3",
     "path-browserify": "^1.0.1",
     "pkijs": "^3.2.4",
