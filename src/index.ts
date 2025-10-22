@@ -4,7 +4,6 @@ import {
     Connect,
     Disconnect,
     Filter,
-    MessageContent,
     MmtpMessage,
     MsgType,
     ProtocolMessage,
@@ -261,43 +260,43 @@ connectBtn.addEventListener("click", async () => {
                         //Handle cases of SMMP messages
                         if (hasFlags(flags, [FlagsEnum.Handshake])) {
 
-                            const asn1 = fromBER(smmpMessage.data);
-                            const certificate = new pkijs.Certificate({schema: asn1.result});
+                            let rcPubKey: CryptoKey;
+                            let confidentiality = false;
+                            let sharedKey: CryptoKey;
 
-                            const algorithm: EcKeyImportParams = {
-                                name: "ECDH",
-                                namedCurve: "P-384", // Ensure Safari supports this curve
-                            };
-
-                            const publicKeyInfo = certificate.subjectPublicKeyInfo;
-
-                            // Import the key using SubtleCrypto, this library is used for Safari compatibility
-                            //Refer to https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey#subjectpublickeyinfo
-                            const rcPubKey = await window.crypto.subtle.importKey(
-                                "spki", // Subject Public Key Info (SPKI) format
-                                publicKeyInfo.toSchema().toBER(false), // Convert the public key to BER, key in Uint8Array bin format
-                                algorithm,
-                                true, // Whether the key is extractable
-                                [] //No usages defined for now
-                            );
-
-
-                            console.log("Parsed cert from incoming msg")
-                            //Perform ECDH
-                            let conf = false
-                            let sharedKey
                             if (hasFlags(flags, [FlagsEnum.Confidentiality])) {
+                                const asn1 = fromBER(smmpMessage.data);
+                                const certificate = new pkijs.Certificate({schema: asn1.result});
+
+                                const algorithm: EcKeyImportParams = {
+                                    name: "ECDH",
+                                    namedCurve: "P-384", // Ensure Safari supports this curve
+                                };
+
+                                const publicKeyInfo = certificate.subjectPublicKeyInfo;
+
+                                // Import the key using SubtleCrypto, this library is used for Safari compatibility
+                                //Refer to https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey#subjectpublickeyinfo
+                                rcPubKey = await window.crypto.subtle.importKey(
+                                    "spki", // Subject Public Key Info (SPKI) format
+                                    publicKeyInfo.toSchema().toBER(false), // Convert the public key to BER, key in Uint8Array bin format
+                                    algorithm,
+                                    true, // Whether the key is extractable
+                                    [] //No usages defined for now
+                                );
+
+
+                                console.log("Parsed cert from incoming msg")
+                                //Perform ECDH
                                 sharedKey = await deriveSecretKey(privateKeyEcdh, rcPubKey)
-                                conf = true
+                                confidentiality = true
                                 console.log("Derived key")
                             }
-                            let deliveryGuarantee = false
-                            if (hasFlags(flags, [FlagsEnum.DeliveryGuarantee])) {
-                                deliveryGuarantee = true
-                            }
+
+                            let deliveryGuarantee = hasFlags(flags, [FlagsEnum.DeliveryGuarantee]);
 
                             //Create a remote client instance we can keep track of
-                            const remoteClient = createRemoteClient(rcPubKey, sharedKey, conf, deliveryGuarantee)
+                            const remoteClient = createRemoteClient(rcPubKey, sharedKey, confidentiality, deliveryGuarantee)
 
                             //Store remote client in a map, identified by MRN
                             remoteClients.set(msg.header.sender, remoteClient)
@@ -473,7 +472,7 @@ connectBtn.addEventListener("click", async () => {
 });
 
 
-async function isSmmp(msg : ApplicationMessage): Promise<boolean> {
+async function isSmmp(msg: ApplicationMessage): Promise<boolean> {
     if (msg.body.length < 4) { // Out of bounds check for SMMP magic word
         return false;
     }
