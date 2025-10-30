@@ -35,7 +35,7 @@
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.5",
     "@popperjs/core": "^2.11.8",
-    "asn1js": "^3.0.5",
+    "asn1js": "^3.0.6",
     "bigint-conversion": "^2.4.3",
     "bootstrap": "^5.3.8",
     "buffer": "^6.0.3",
