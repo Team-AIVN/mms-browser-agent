@@ -1046,7 +1046,7 @@ sendSmmpBtn.addEventListener("click", async () => {
     const msgSegments = Math.ceil(body.length / SMMP_SEGMENTATION_THRESHOLD)
     console.log("MSG SEGMENTS: ", msgSegments)
     for (let i = 0; i < msgSegments; i++) {
-        const segment = body.subarray(i * SMMP_SEGMENTATION_THRESHOLD, (i + 1) * SMMP_SEGMENTATION_THRESHOLD) //Idx will be clamped
+        const segment = body.subarray(i * SMMP_SEGMENTATION_THRESHOLD, (i + 1) * SMMP_SEGMENTATION_THRESHOLD) as BufferSource; //Idx will be clamped
         console.log("Total segments", msgSegments)
         console.log("Cur segment", segment)
         const cipherSegment = await encrypt(rc.symKey, segment)
@@ -1400,7 +1400,7 @@ async function deriveSecretKey(privateKey: CryptoKey, publicKey: CryptoKey) {
 
 //Inspired from https://github.com/mdn/dom-examples/blob/main/web-crypto/derive-key/ecdh.js
 //Note from  NIST SP800-38A standard the max number of blocks MAY NOT EXCEED 2^64
-async function encrypt(secretKey: CryptoKey, data: Uint8Array) {
+async function encrypt(secretKey: CryptoKey, data: BufferSource) {
     let iv = window.crypto.getRandomValues(new Uint8Array(16));
     let ciphertext = await crypto.subtle.encrypt(
         {
