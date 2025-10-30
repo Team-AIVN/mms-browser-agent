@@ -6,7 +6,7 @@ const webpack = require("webpack");
 
 module.exports = (env = {}) => {
     const isProduction = process.env.NODE_ENV === "production";
-    const currentEnv = env.mir || "aivn"; // Use env.mir, default to 'mcc'
+    const currentEnv = env.mir || "mcc"; // Use env.mir, default to 'mcc'
 
     const config = {
         entry: "./src/index.ts",
