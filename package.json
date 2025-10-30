@@ -39,7 +39,6 @@
     "bigint-conversion": "^2.4.3",
     "bootstrap": "^5.3.8",
     "buffer": "^6.0.3",
-    "long": "^5.2.3",
     "path-browserify": "^1.0.1",
     "pkijs": "^3.2.4",
     "stream-browserify": "^3.0.0",
