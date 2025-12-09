@@ -670,6 +670,7 @@ subjectRadio.addEventListener('change', () => {
         sendBtn.style.width = "100vw";
         sendSmmpBtn.hidden = true;
         sendBtn.textContent = "Send"
+        customMrn.hidden = true;
     }
 });
 
