@@ -53,6 +53,7 @@ const incomingArea = document.getElementById("incomingArea") as HTMLDivElement;
 
 const subsList = document.getElementById("subscriptions") as HTMLUListElement;
 const subjectSelect = document.getElementById("subjectSelect") as HTMLSelectElement;
+const customMrn = document.getElementById("customMrn") as HTMLInputElement;
 
 //All SMMP relevant items
 const smmpMenu = document.getElementById("smmpMenu") as HTMLDivElement
@@ -71,7 +72,7 @@ imgElement.width = 100
 imgElement.classList.add('mt-3', 'mb-3') //Margin to the top and bottom
 
 const versioningStr = document.createElement('p')
-versioningStr.textContent = 'Updated May 2025'
+versioningStr.textContent = 'Updated December 2025'
 logoCol.appendChild(imgElement);
 logoCol.appendChild(versioningStr);
 
@@ -603,9 +604,16 @@ interface SegmentedMessage {
 const mrnRadio = document.getElementById('mrn') as HTMLInputElement;
 const subjectRadio = document.getElementById('subject') as HTMLInputElement;
 
+customMrn.addEventListener('change', event => {
+    receiverMrnSelect.hidden = customMrn.value != "";
+})
+
 mrnRadio.addEventListener('change', () => {
     if (mrnRadio.checked) {
         subjectSelect.hidden = true;
+
+        customMrn.hidden = false;
+        customMrn.value = "";
         receiverMrnSelect.hidden = false;
         fetch(mrnStoreUrl + "/mrns", {
             mode: "cors",
@@ -993,7 +1001,11 @@ async function sendMsg(body: Uint8Array) {
     let subjectCastMsg: boolean = false
 
     if (mrnRadio.checked) {
-        const receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
+        let receiver = receiverMrnSelect.options[receiverMrnSelect.selectedIndex].value;
+        if (customMrn.value != "") {
+            receiver = customMrn.value;
+        }
+
         sendMsg.protocolMessage.sendMessage.applicationMessage.header.recipients = Recipients.create({
             recipients: [receiver]
         });
